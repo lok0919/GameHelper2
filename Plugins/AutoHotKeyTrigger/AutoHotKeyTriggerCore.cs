@@ -196,12 +196,12 @@ namespace AutoHotKeyTrigger
             DynamicCondition.UpdateState();
             if (this.ShouldExecuteAutoQuit ||
                 (this.Settings.EnableAutoQuitKey &&
-                Utils.IsKeyPressedAndNotTimeout(this.Settings.AutoQuitKey)))
+                Utils.IsKeyPressedAndNotTimeout(this.Settings.AutoQuitKey, 200)))
             {
                 MiscHelper.KillTCPConnectionForProcess(Core.Process.Pid);
             }
 
-            if (Utils.IsKeyPressedAndNotTimeout(this.Settings.DumpStatusEffectOnMe))
+            if (Utils.IsKeyPressedAndNotTimeout(this.Settings.DumpStatusEffectOnMe, 200))
             {
                 if (Core.States.InGameStateObject.CurrentAreaInstance.Player.TryGetComponent<Buffs>(out var buff))
                 {

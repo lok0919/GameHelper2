@@ -154,8 +154,24 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         {
             try
             {
+                var parsingConfig = new ParsingConfig()
+                {
+                    AllowNewToEvaluateAnyType = true,
+                    ResolveTypesBySimpleName = true,
+                    AllowEqualsAndToStringMethodsOnObject = true
+                };
+
+                var types = new System.Collections.Generic.List<Type>
+                {
+                    typeof(GameHelper.RemoteEnums.Animation),
+                    typeof(Interface.MonsterRarity),
+                    typeof(Interface.MonsterNearbyZones)
+                };
+
+                parsingConfig.CustomTypeProvider = new System.Linq.Dynamic.Core.CustomTypeProviders.DefaultDynamicLinqCustomTypeProvider(parsingConfig, types, true);
+
                 var expression = DynamicExpressionParser.ParseLambda<DynamicConditionState, bool>(
-                    new ParsingConfig() { AllowNewToEvaluateAnyType = true, ResolveTypesBySimpleName = true },
+                    parsingConfig,
                     false,
                     this.conditionSource);
                 this.func = expression.Compile();
