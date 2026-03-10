@@ -30,6 +30,11 @@
 
             this.OwnerEntityAddress = data.Header.EntityPtr;
             long count = data.StatesValues.TotalElements(ValueSize);
+            if (count <= 0 || count > 10000)
+            {
+                this.States = [];
+                return;
+            }
 
             var states = new List<StateMachineState>((int)count);
 
