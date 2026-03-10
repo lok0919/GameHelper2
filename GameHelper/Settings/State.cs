@@ -210,7 +210,7 @@ namespace GameHelper.Settings
         {
             ("Metadata/MiscellaneousObjects/Expedition/ExpeditionMarker", 100),
             ("Metadata/MiscellaneousObjects/Expedition/ExpeditionRelic", 101),
-            ("Metadata/Terrain/Gallows/Leagues/Expedition/Objects/ExpeditionCavernEntrance", 100),
+            ("Metadata/Terrain/Gallows/Leagues/Expedition/Objects/Expedition", 100),
         };
 
         /// <summary>
