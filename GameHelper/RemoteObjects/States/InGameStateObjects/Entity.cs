@@ -29,6 +29,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
         private readonly ConcurrentDictionary<string, IntPtr> componentAddresses;
         private readonly ConcurrentDictionary<string, ComponentBase> componentCache;
+
         private NearbyZones zone;
         private int customGroup;
         private EntitySubtypes oldSubtypeWithoutPOI;
@@ -86,14 +87,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public bool IsValid { get; set; }
 
         /// <summary>
-        ///     Gets a value indicating the type of entity this is. This never changes
-        ///     for a given entity until entity is removed from GH memory (i.e. area change)
+        ///     Gets a value indicating the type of entity this is.
         /// </summary>
         public EntityTypes EntityType { get; protected set; }
 
         /// <summary>
-        ///     Get a value indicating the sub-type of the entity. This never changes
-        ///     for a given entity until entity is removed from GH memory (i.e. area change)
+        ///     Get a value indicating the sub-type of the entity.
         /// </summary>
         public EntitySubtypes EntitySubtype { get; protected set; }
 
@@ -182,7 +181,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         ///     Validates if the monster is/was of a specific subtype.
         /// </summary>
         /// <param name="subType">subType the entity is/was in.</param>
-        /// <returns></returns>
+        /// <returns>true if it is/was that subtype; otherwise false.</returns>
         public bool IsOrWasMonsterSubType(EntitySubtypes subType)
         {
             var toCheck = this.EntitySubtype == EntitySubtypes.POIMonster ?
@@ -271,15 +270,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         ///     Updates the component data associated with the Entity base object (i.e. item).
         /// </summary>
         /// <param name="idata">Entity base (i.e. item) data.</param>
-        /// <param name="hasAddressChanged">has this class Address changed or not.</param>
-        /// <returns> false if this method detects an issue, otherwise true</returns>
-        protected bool UpdateComponentData(ItemStruct idata, bool hasAddressChanged)
+        /// <param name="refreshComponentMap">should component map be rebuilt from memory.</param>
+        /// <returns>false if this method detects an issue, otherwise true.</returns>
+        protected bool UpdateComponentData(ItemStruct idata, bool refreshComponentMap)
         {
             var reader = Core.Process.Handle;
-            if (hasAddressChanged)
+            if (refreshComponentMap)
             {
                 this.componentAddresses.Clear();
                 this.componentCache.Clear();
+
                 var entityDetails = reader.ReadMemory<EntityDetails>(idata.EntityDetailsPtr);
                 this.Path = reader.ReadStdWString(entityDetails.name);
                 if (string.IsNullOrEmpty(this.Path))
@@ -287,8 +287,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     return false;
                 }
 
-                var lookupPtr = reader.ReadMemory<ComponentLookUpStruct>(
-                    entityDetails.ComponentLookUpPtr);
+                var lookupPtr = reader.ReadMemory<ComponentLookUpStruct>(entityDetails.ComponentLookUpPtr);
                 if (lookupPtr.ComponentsNameAndIndex.Capacity > MaxComponentsInAnEntity)
                 {
                     return false;
@@ -297,6 +296,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 var namesAndIndexes = reader.ReadStdBucket<ComponentNameAndIndexStruct>(
                     lookupPtr.ComponentsNameAndIndex);
                 var entityComponent = reader.ReadStdVector<IntPtr>(idata.ComponentListPtr);
+
                 for (var i = 0; i < namesAndIndexes.Length; i++)
                 {
                     var nameAndIndex = namesAndIndexes[i];
@@ -305,7 +305,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         var name = reader.ReadString(nameAndIndex.NamePtr);
                         if (!string.IsNullOrEmpty(name))
                         {
-                            this.componentAddresses.TryAdd(name, entityComponent[nameAndIndex.Index]);
+                            this.componentAddresses[name] = entityComponent[nameAndIndex.Index];
                         }
                     }
                 }
@@ -340,18 +340,39 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.IsValid = EntityHelper.IsValidEntity(entityData.IsValid);
             if (!this.IsValid)
             {
-                // Invalid entity data is normally corrupted. let's not parse it.
                 return;
             }
 
             this.Id = entityData.Id;
-            if (this.EntityState == EntityStates.Useless)
+
+            var isUnresolved =
+                this.EntityType == EntityTypes.Unidentified ||
+                this.EntitySubtype == EntitySubtypes.Unidentified;
+
+            var isMonster = this.EntityType == EntityTypes.Monster ||
+                            this.componentAddresses.ContainsKey("Monster") ||
+                            this.Path.StartsWith("Metadata/Monsters/");
+
+            var shouldSkipBecauseUseless =
+                this.EntityState == EntityStates.Useless &&
+                !isUnresolved &&
+                !isMonster;
+
+            if (shouldSkipBecauseUseless)
             {
-                // let's not read or parse any useless entity components.
                 return;
             }
 
-            if (!this.UpdateComponentData(entityData.ItemBase, hasAddressChanged))
+            // Full refresh when:
+            // - address changed
+            // - still unresolved
+            // - useless monster now shows wake-up signals
+            var shouldRefreshComponentMap =
+                hasAddressChanged ||
+                isUnresolved ||
+                this.ShouldForceMonsterRefresh();
+
+            if (!this.UpdateComponentData(entityData.ItemBase, shouldRefreshComponentMap))
             {
                 this.UpdateComponentData(entityData.ItemBase, true);
             }
@@ -380,8 +401,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         /// <summary>
         ///     Loads the component class for the entity.
         /// </summary>
-        /// <param name="componentType"></param>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <param name="componentType">component type to load.</param>
         private void LoadComponent(Type componentType)
         {
             if (this.componentAddresses.TryGetValue(componentType.Name, out var compAddr))
@@ -394,6 +414,47 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     }
                 }
             }
+        }
+
+        private bool ShouldForceMonsterRefresh()
+        {
+            if (this.EntityType != EntityTypes.Monster && !this.componentAddresses.ContainsKey("Monster"))
+            {
+                return false;
+            }
+
+            if (this.EntityState != EntityStates.Useless)
+            {
+                return false;
+            }
+
+            // Cheap wake-up signals for dormant monsters using the same ptr/id.
+            if (this.TryGetStatValue(GameStats.is_dead, out var isDead) && isDead == 0)
+            {
+                return true;
+            }
+
+            if (this.TryGetComponent<StateMachine>(out var sm, false) &&
+                sm.States != null &&
+                sm.States.Count > 0 &&
+                sm.States.Any(x => x.Value != 0))
+            {
+                return true;
+            }
+
+            if (this.TryGetComponent<Targetable>(out var targetable, false) && targetable.IsTargetable)
+            {
+                return true;
+            }
+
+            if (this.TryGetComponent<Buffs>(out var buffs, false) &&
+                buffs.StatusEffects != null &&
+                buffs.StatusEffects.Count > 0)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -416,8 +477,6 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             }
             else if (this.TryGetComponent<Shrine>(out var _))
             {
-                // NOTE: Do not send Shrine to useless because it can go back to not used.
-                //       e.g. Shrine in PVP area can do that.
                 this.EntityType = EntityTypes.Shrine;
             }
             else if (this.IsInSpecialMiscObjPaths())
@@ -430,15 +489,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 {
                     return false;
                 }
-                else if (!this.TryGetComponent<Positioned>(out var pos))
+
+                if (!this.TryGetComponent<Positioned>(out var pos))
                 {
                     return false;
                 }
-                else if (!this.TryGetComponent<ObjectMagicProperties>(out var _))
-                {
-                    return false;
-                }
-                else if (!pos.IsFriendly && this.TryGetComponent<DiesAfterTime>(out var _))
+
+                if (!pos.IsFriendly && this.TryGetComponent<DiesAfterTime>(out var _))
                 {
                     if (this.TryGetComponent<Targetable>(out var tComp) && tComp.IsTargetable)
                     {
@@ -450,7 +507,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     }
                 }
                 else if (this.Path.StartsWith(DeliriumHiddenMonsterStarting) ||
-                    this.Path.StartsWith(DeliriumUselessMonsterStarting)) // Delirium non-monster entity detector
+                         this.Path.StartsWith(DeliriumUselessMonsterStarting))
                 {
                     if (this.Path.Contains("ShardPack"))
                     {
@@ -465,7 +522,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 {
                     return false;
                 }
-                else if (this.componentAddresses.ContainsKey("Buffs"))
+                else if (this.componentAddresses.ContainsKey("Monster") ||
+                         this.componentAddresses.ContainsKey(nameof(Buffs)) ||
+                         this.componentAddresses.ContainsKey(nameof(ObjectMagicProperties)))
                 {
                     this.EntityType = EntityTypes.Monster;
                 }
@@ -478,8 +537,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 this.EntityType = EntityTypes.NPC;
             }
-            else if (Core.GHSettings.ProcessAllRenderableEntities
-                && this.TryGetComponent<Positioned>(out var _))
+            else if (Core.GHSettings.ProcessAllRenderableEntities &&
+                     this.TryGetComponent<Positioned>(out var _))
             {
                 this.EntityType = EntityTypes.Renderable;
             }
@@ -501,13 +560,14 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 case EntityTypes.Unidentified:
                     throw new Exception($"Entity with path ({this.Path}) and Id (${this.Id}) is unidentified.");
+
                 case EntityTypes.Chest:
                     this.TryGetComponent<Chest>(out var chestComp);
                     if (this.Path.StartsWith("Metadata/Chests/LeaguesExpedition"))
                     {
                         this.EntitySubtype = EntitySubtypes.ExpeditionChest;
                     }
-                    else if (chestComp.IsStrongbox)
+                    else if (chestComp != null && chestComp.IsStrongbox)
                     {
                         this.EntitySubtype = EntitySubtypes.Strongbox;
                     }
@@ -520,16 +580,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         this.EntitySubtype = EntitySubtypes.BreachChest;
                     }
                     else if (this.TryGetComponent<ObjectMagicProperties>(out var chestOMP) &&
-                        (chestOMP.Rarity == Rarity.Magic || chestOMP.Rarity == Rarity.Rare || chestOMP.Rarity == Rarity.Unique))
+                             (chestOMP.Rarity == Rarity.Magic ||
+                              chestOMP.Rarity == Rarity.Rare ||
+                              chestOMP.Rarity == Rarity.Unique))
                     {
-                        if (chestOMP.Rarity == Rarity.Rare || chestOMP.Rarity == Rarity.Unique)
-                        {
-                            this.EntitySubtype = EntitySubtypes.ChestWithRareRarity;
-                        }
-                        else
-                        {
-                            this.EntitySubtype = EntitySubtypes.ChestWithMagicRarity;
-                        }
+                        this.EntitySubtype = chestOMP.Rarity == Rarity.Rare || chestOMP.Rarity == Rarity.Unique
+                            ? EntitySubtypes.ChestWithRareRarity
+                            : EntitySubtypes.ChestWithMagicRarity;
                     }
                     else
                     {
@@ -537,86 +594,80 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     }
 
                     break;
-                case EntityTypes.Player:
-                    if (this.Id == Core.States.InGameStateObject.CurrentAreaInstance.Player.Id)
-                    {
-                        this.EntitySubtype = EntitySubtypes.PlayerSelf;
-                    }
-                    else
-                    {
-                        this.EntitySubtype = EntitySubtypes.PlayerOther;
-                    }
 
+                case EntityTypes.Player:
+                    this.EntitySubtype = this.Id == Core.States.InGameStateObject.CurrentAreaInstance.Player.Id
+                        ? EntitySubtypes.PlayerSelf
+                        : EntitySubtypes.PlayerOther;
                     break;
+
                 case EntityTypes.Shrine:
                     this.EntitySubtype = EntitySubtypes.None;
                     break;
+
                 case EntityTypes.DeliriumSpawner:
                 case EntityTypes.DeliriumBomb:
                 case EntityTypes.Renderable:
                     break;
+
                 case EntityTypes.Monster:
-                    if (!this.TryGetComponent<ObjectMagicProperties>(out var omp))
-                    {
-                        // All monsters must have OMP, otherwise they are not monsters.
-                        // This check happens at EntityType detection.
-                        return false;
-                    }
+                    this.EntitySubtype = EntitySubtypes.None;
+                    this.customGroup = 0;
+                    this.oldSubtypeWithoutPOI = EntitySubtypes.None;
 
-                    if (!this.TryGetComponent<Stats>(out var statcomp, false))
-                    {
-                        // All monsters must have stats component, otherwise they are not monsters.
-                        return false;
-                    }
+                    this.TryGetComponent<ObjectMagicProperties>(out var omp, false);
+                    this.TryGetComponent<Stats>(out var statcomp, false);
 
-                    if (omp.ModNames.Contains("PinnacleAtlasBoss"))
+                    if (omp != null && omp.ModNames.Contains("PinnacleAtlasBoss"))
                     {
                         this.EntitySubtype = EntitySubtypes.PinnacleBoss;
                     }
-                    else
-                    {
-                        this.EntitySubtype = EntitySubtypes.None;
-                    }
 
-                    for (var i = 0; i < Core.GHSettings.PoiMonstersCategories2.Count; i++)
+                    if (omp != null)
                     {
-                        var (filtertype, filter, rarity, stat, group) = Core.GHSettings.PoiMonstersCategories2[i];
-                        if (filtertype switch
+                        for (var i = 0; i < Core.GHSettings.PoiMonstersCategories2.Count; i++)
                         {
-                            EntityFilterType.PATH => this.Path.StartsWith(filter),
-                            EntityFilterType.PATHANDRARITY => omp.Rarity == rarity && this.Path.StartsWith(filter),
-                            EntityFilterType.MOD => omp.ModNames.Contains(filter),
-                            EntityFilterType.MODANDRARITY => omp.Rarity == rarity && omp.ModNames.Contains(filter),
-                            EntityFilterType.PATHANDSTAT => (omp.ModStats.ContainsKey(stat) ||
-                                                             statcomp.StatsChangedByItems.ContainsKey(stat)) &&
-                                                             this.Path.StartsWith(filter),
-                            _ => throw new Exception($"EntityFilterType {filtertype} added but not handled in Entity file.")
-                        })
-                        {
-                            this.oldSubtypeWithoutPOI = this.EntitySubtype;
-                            this.EntitySubtype = EntitySubtypes.POIMonster;
-                            this.customGroup = group;
+                            var (filtertype, filter, rarity, stat, group) = Core.GHSettings.PoiMonstersCategories2[i];
+                            var matched = filtertype switch
+                            {
+                                EntityFilterType.PATH => this.Path.StartsWith(filter),
+                                EntityFilterType.PATHANDRARITY => omp.Rarity == rarity && this.Path.StartsWith(filter),
+                                EntityFilterType.MOD => omp.ModNames.Contains(filter),
+                                EntityFilterType.MODANDRARITY => omp.Rarity == rarity && omp.ModNames.Contains(filter),
+                                EntityFilterType.PATHANDSTAT =>
+                                    this.Path.StartsWith(filter) &&
+                                    ((omp.ModStats != null && omp.ModStats.ContainsKey(stat)) ||
+                                     (statcomp != null &&
+                                      statcomp.StatsChangedByItems != null &&
+                                      statcomp.StatsChangedByItems.ContainsKey(stat))),
+                                _ => throw new Exception($"EntityFilterType {filtertype} added but not handled in Entity file.")
+                            };
+
+                            if (matched)
+                            {
+                                this.oldSubtypeWithoutPOI = this.EntitySubtype;
+                                this.EntitySubtype = EntitySubtypes.POIMonster;
+                                this.customGroup = group;
+                            }
                         }
                     }
 
                     break;
-                case EntityTypes.NPC:
-                    if (Core.GHSettings.SpecialNPCPaths.Any(this.Path.StartsWith))
-                    {
-                        this.EntitySubtype = EntitySubtypes.SpecialNPC;
-                    }
-                    else
-                    {
-                        this.EntitySubtype = EntitySubtypes.None;
-                    }
 
+                case EntityTypes.NPC:
+                    this.EntitySubtype = Core.GHSettings.SpecialNPCPaths.Any(this.Path.StartsWith)
+                        ? EntitySubtypes.SpecialNPC
+                        : EntitySubtypes.None;
                     break;
+
                 case EntityTypes.OtherImportantObjects:
                     this.EntitySubtype = EntitySubtypes.None;
                     break;
+
                 case EntityTypes.Item:
                     this.EntitySubtype = EntitySubtypes.WorldItem;
                     break;
+
                 default:
                     throw new Exception($"Please update TryCalculateEntitySubType function to include {this.EntityType}.");
             }
@@ -628,63 +679,53 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             if (this.EntityType == EntityTypes.Chest)
             {
-                if (!this.TryGetComponent<Chest>(out var chestComp))
-                {
-                }
-                else if (chestComp.IsOpened)
+                if (this.TryGetComponent<Chest>(out var chestComp) && chestComp.IsOpened)
                 {
                     this.EntityState = EntityStates.Useless;
+                }
+                else
+                {
+                    this.EntityState = EntityStates.None;
                 }
             }
             else if (this.EntityType == EntityTypes.DeliriumBomb || this.EntityType == EntityTypes.DeliriumSpawner)
             {
-                if (!this.TryGetComponent<Life>(out var lifeComp))
-                {
-                }
-                else if (!lifeComp.IsAlive)
+                if (this.TryGetComponent<Life>(out var lifeComp) && !lifeComp.IsAlive)
                 {
                     this.EntityState = EntityStates.Useless;
+                }
+                else
+                {
+                    this.EntityState = EntityStates.None;
                 }
             }
             else if (this.EntityType == EntityTypes.Monster)
             {
-                if (!this.TryGetComponent<Life>(out var lifeComp))
-                {
-                }
-                else if (!lifeComp.IsAlive)
+                if (this.TryGetStatValue(GameStats.is_dead, out var isDead) && isDead > 0)
                 {
                     this.EntityState = EntityStates.Useless;
+                    return;
                 }
-                else if (!this.TryGetComponent<Positioned>(out var posComp))
-                {
-                }
-                else if (posComp.IsFriendly)
+
+                if (this.TryGetComponent<Positioned>(out var posComp) && posComp.IsFriendly)
                 {
                     this.EntityState = EntityStates.MonsterFriendly;
                 }
-                else if (this.EntityState == EntityStates.MonsterFriendly)
+                else if (this.IsOrWasMonsterSubType(EntitySubtypes.PinnacleBoss) &&
+                         this.TryGetComponent<Buffs>(out var buffsComp) &&
+                         buffsComp.StatusEffects.ContainsKey("hidden_monster"))
+                {
+                    this.EntityState = EntityStates.PinnacleBossHidden;
+                }
+                else
                 {
                     this.EntityState = EntityStates.None;
-                }
-                else if (this.IsOrWasMonsterSubType(EntitySubtypes.PinnacleBoss))
-                {
-                    if (this.TryGetComponent<Buffs>(out var buffsComp) &&
-                        buffsComp.StatusEffects.ContainsKey("hidden_monster"))
-                    {
-                        this.EntityState = EntityStates.PinnacleBossHidden;
-                    }
-                    else
-                    {
-                        this.EntityState = EntityStates.None;
-                    }
                 }
             }
             else if (this.EntitySubtype == EntitySubtypes.PlayerOther)
             {
-                if (!this.TryGetComponent<Player>(out var playerComp))
-                {
-                }
-                else if (playerComp.Name.Equals(Core.GHSettings.LeaderName))
+                if (this.TryGetComponent<Player>(out var playerComp) &&
+                    playerComp.Name.Equals(Core.GHSettings.LeaderName))
                 {
                     this.EntityState = EntityStates.PlayerLeader;
                 }
@@ -693,6 +734,33 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     this.EntityState = EntityStates.None;
                 }
             }
+            else
+            {
+                this.EntityState = EntityStates.None;
+            }
+        }
+
+        private bool TryGetStatValue(GameStats stat, out int value)
+        {
+            value = 0;
+            if (!this.TryGetComponent<Stats>(out var statsComp, false))
+            {
+                return false;
+            }
+
+            if (statsComp.StatsChangedByBuffAndActions != null &&
+                statsComp.StatsChangedByBuffAndActions.TryGetValue(stat, out value))
+            {
+                return true;
+            }
+
+            if (statsComp.StatsChangedByItems != null &&
+                statsComp.StatsChangedByItems.TryGetValue(stat, out value))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private bool IsInSpecialMiscObjPaths()
