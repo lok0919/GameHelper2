@@ -27,12 +27,17 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly string DeliriumUselessMonsterStarting =
             "Metadata/Monsters/LeagueDelirium/Volatile/";
 
+        private const int DormantCheckInterval = 30;
+        private const int MaxUnresolvedRetries = 5;
+
         private readonly ConcurrentDictionary<string, IntPtr> componentAddresses;
         private readonly ConcurrentDictionary<string, ComponentBase> componentCache;
 
         private NearbyZones zone;
         private int customGroup;
         private EntitySubtypes oldSubtypeWithoutPOI;
+        private int dormantCheckSkip;
+        private int unresolvedRetryCount;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="Entity" /> class.
@@ -345,32 +350,52 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             this.Id = entityData.Id;
 
+            if (hasAddressChanged)
+            {
+                this.unresolvedRetryCount = 0;
+                this.dormantCheckSkip = 0;
+            }
+
             var isUnresolved =
-                this.EntityType == EntityTypes.Unidentified ||
-                this.EntitySubtype == EntitySubtypes.Unidentified;
+                (this.EntityType == EntityTypes.Unidentified ||
+                 this.EntitySubtype == EntitySubtypes.Unidentified) &&
+                this.unresolvedRetryCount < MaxUnresolvedRetries;
 
             var isMonster = this.EntityType == EntityTypes.Monster ||
                             this.componentAddresses.ContainsKey("Monster") ||
                             this.Path.StartsWith("Metadata/Monsters/");
 
-            var shouldSkipBecauseUseless =
-                this.EntityState == EntityStates.Useless &&
-                !isUnresolved &&
-                !isMonster;
-
-            if (shouldSkipBecauseUseless)
+            // Skip useless non-monster, non-unresolved entities immediately.
+            if (this.EntityState == EntityStates.Useless && !isUnresolved)
             {
-                return;
+                if (!isMonster)
+                {
+                    return;
+                }
+
+                // Throttle dormant monster checks — once every DormantCheckInterval frames.
+                this.dormantCheckSkip++;
+                if (this.dormantCheckSkip < DormantCheckInterval)
+                {
+                    return;
+                }
+
+                this.dormantCheckSkip = 0;
+
+                if (!this.ShouldForceMonsterRefresh())
+                {
+                    return;
+                }
             }
 
             // Full refresh when:
             // - address changed
-            // - still unresolved
-            // - useless monster now shows wake-up signals
+            // - still unresolved (retry classification)
+            // - useless monster passed wake-up check above
             var shouldRefreshComponentMap =
                 hasAddressChanged ||
                 isUnresolved ||
-                this.ShouldForceMonsterRefresh();
+                (isMonster && this.EntityState == EntityStates.Useless);
 
             if (!this.UpdateComponentData(entityData.ItemBase, shouldRefreshComponentMap))
             {
@@ -381,6 +406,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 if (!this.TryCalculateEntityType())
                 {
+                    this.unresolvedRetryCount++;
                     this.EntityState = EntityStates.Useless;
                     return;
                 }
@@ -390,6 +416,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 if (!this.TryCalculateEntitySubType())
                 {
+                    this.unresolvedRetryCount++;
                     this.EntityState = EntityStates.Useless;
                     return;
                 }
@@ -430,6 +457,14 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             // Cheap wake-up signals for dormant monsters using the same ptr/id.
             if (this.TryGetStatValue(GameStats.is_dead, out var isDead) && isDead == 0)
+            {
+                return true;
+            }
+
+            // For monsters marked dead via Life fallback (no is_dead stat),
+            // check if Life becomes alive again.
+            if (!this.TryGetStatValue(GameStats.is_dead, out _) &&
+                this.TryGetComponent<Life>(out var lifeComp, false) && lifeComp.IsAlive)
             {
                 return true;
             }
@@ -701,7 +736,15 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             }
             else if (this.EntityType == EntityTypes.Monster)
             {
-                if (this.TryGetStatValue(GameStats.is_dead, out var isDead) && isDead > 0)
+                var hasDead = this.TryGetStatValue(GameStats.is_dead, out var isDead);
+                if (hasDead && isDead > 0)
+                {
+                    this.EntityState = EntityStates.Useless;
+                    return;
+                }
+
+                // Fallback: if is_dead stat is unavailable, use Life component.
+                if (!hasDead && this.TryGetComponent<Life>(out var lifeComp, false) && !lifeComp.IsAlive)
                 {
                     this.EntityState = EntityStates.Useless;
                     return;
