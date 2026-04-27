@@ -22,11 +22,11 @@ namespace GameHelper.Utils
             where T : new()
         {
             file.Refresh();
-            file.Directory.Create();
+            file.Directory?.Create();
             if (file.Exists)
             {
                 var content = File.ReadAllText(file.FullName);
-                return JsonConvert.DeserializeObject<T>(content);
+                return JsonConvert.DeserializeObject<T>(content) ?? new T();
             }
 
             T obj = new();

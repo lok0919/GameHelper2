@@ -22,13 +22,13 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         private static readonly Vector4 CodeCompileFailure = new(255, 0, 0, 255);
         private static readonly DynamicCondition ConfigurationInstance = new("");
 
-        private static Lazy<DynamicConditionState> state;
+        private static Lazy<DynamicConditionState> state = null!;
 
         [JsonProperty] private string conditionSource;
-        [JsonProperty] private IComponent component;
+        [JsonProperty] private IComponent? component;
 
-        private string lastException;
-        private Func<DynamicConditionState, bool> func;
+        private string? lastException;
+        private Func<DynamicConditionState, bool>? func;
         private ulong exceptionCounter;
 
         /// <summary>
@@ -49,7 +49,7 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         /// <param name="conditionSource">The source code for the condition</param>
         /// <param name="component">Component to add in the condition</param>
         [JsonConstructor]
-        public DynamicCondition(string conditionSource, IComponent component)
+        public DynamicCondition(string conditionSource, IComponent? component)
         {
             this.conditionSource = conditionSource;
             this.component = component;
@@ -75,7 +75,7 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         /// <returns>
         ///     <see cref="DynamicConditions" /> if user wants to add the condition, otherwise null.
         /// </returns>
-        public static DynamicCondition Add()
+        public static DynamicCondition? Add()
         {
             ConfigurationInstance.ToImGui();
             ImGui.SameLine();

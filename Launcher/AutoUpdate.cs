@@ -13,8 +13,8 @@
         private const string ReleasesApiUrl = "https://gitlab.com/api/v4/projects/arsenic2k%2FGameHelper2/releases";
         
         private static readonly HttpClient HttpClient = new();
-        private static string extractedPath;
-        private static string newVersion;
+        private static string? extractedPath;
+        private static string? newVersion;
 
         static AutoUpdate()
         {
@@ -71,7 +71,7 @@
             }
         }
 
-        private static async Task<string> GetLatestVersionAsync()
+        private static async Task<string?> GetLatestVersionAsync()
         {
             try
             {
@@ -79,7 +79,7 @@
                 var releases = JArray.Parse(response);
                 if (releases.Count > 0)
                 {
-                    return releases[0]["tag_name"]?.ToString() ?? null;
+                    return releases[0]["tag_name"]?.ToString();
                 }
                 return null;
             }
@@ -158,7 +158,7 @@
             }
         }
 
-        private static async Task<string> GetDownloadUrlForVersionAsync(string version)
+        private static async Task<string?> GetDownloadUrlForVersionAsync(string version)
         {
             try
             {
@@ -170,7 +170,7 @@
                     var tagName = release["tag_name"]?.ToString();
                     if (tagName == version)
                     {
-                        var links = release["assets"]["links"] as JArray;
+                        var links = release["assets"]?["links"] as JArray;
                         if (links?.Count > 0)
                         {
                             return links[0]["url"]?.ToString();

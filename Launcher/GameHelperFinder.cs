@@ -20,20 +20,20 @@ namespace Launcher
         /// <returns></returns>
         public static bool TryFindGameHelperExe(out string gameHelperDir, out string gameHelperLoc)
         {
-            gameHelperDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            gameHelperDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty;
             gameHelperLoc = Path.Join(gameHelperDir, GameHelperFileName);
             if (!new FileInfo(gameHelperLoc).Exists)
             {
                 Console.WriteLine($"GameHelper.exe not found in {gameHelperDir} directory.");
                 Console.Write("Provide GameHelper.exe path:");
-                var path = Console.ReadLine().Trim();
+                var path = (Console.ReadLine() ?? string.Empty).Trim();
                 if (File.GetAttributes(path).HasFlag(FileAttributes.Directory))
                 {
                     gameHelperDir = path;
                 }
                 else
                 {
-                    gameHelperDir = Path.GetDirectoryName(path);
+                    gameHelperDir = Path.GetDirectoryName(path) ?? string.Empty;
                 }
 
                 gameHelperLoc = Path.Join(gameHelperDir, GameHelperFileName);

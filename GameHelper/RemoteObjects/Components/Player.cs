@@ -23,7 +23,7 @@ namespace GameHelper.RemoteObjects.Components
         /// <summary>
         ///     Gets the name of the player.
         /// </summary>
-        public string Name { get; private set; }
+        public string Name { get; private set; } = string.Empty;
 
         /// <summary>
         ///     Gets the Xp of the player.

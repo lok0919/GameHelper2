@@ -34,13 +34,13 @@ public static class PerformanceProfiler
         CoroutineHandler.Start(RenderWindow());
     }
 
-    public static IDisposable Profile(string namespaceName, string methodName)
+    public static IDisposable? Profile(string namespaceName, string methodName)
     {
         if (!Core.GHSettings.ShowPerfProfiler)
         {
             return null;
         }
-            
+
         var stopwatch = Stopwatch.StartNew();
         return new ProfileDisposable($"{namespaceName}.{methodName}", stopwatch, ProfileData, CurrentFrameNs, CurrentFrameCounts);
     }

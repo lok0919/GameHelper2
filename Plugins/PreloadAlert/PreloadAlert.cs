@@ -34,7 +34,7 @@ namespace PreloadAlert
         private string tmpModifyPreloadKey = string.Empty;
 
         private bool isPreloadAlertHovered;
-        private ActiveCoroutine onPreloadUpdated;
+        private ActiveCoroutine? onPreloadUpdated;
 
         private string preloadListFilter = string.Empty;
 
@@ -64,7 +64,7 @@ namespace PreloadAlert
             if (File.Exists(this.SettingPathname))
             {
                 var content = File.ReadAllText(this.SettingPathname);
-                this.Settings = JsonConvert.DeserializeObject<PreloadSettings>(content);
+                this.Settings = JsonConvert.DeserializeObject<PreloadSettings>(content) ?? new PreloadSettings();
             }
 
             this.preloads.Load(this.PreloadFileName);
@@ -79,7 +79,7 @@ namespace PreloadAlert
         {
             var lockStatus = this.Settings.Locked;
             this.Settings.Locked = true;
-            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname));
+            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname) ?? string.Empty);
             var settingsData = JsonConvert.SerializeObject(this.Settings, Formatting.Indented);
             File.WriteAllText(this.SettingPathname, settingsData);
             this.Settings.Locked = lockStatus;

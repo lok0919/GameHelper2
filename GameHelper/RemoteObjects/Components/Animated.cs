@@ -25,7 +25,7 @@ namespace GameHelper.RemoteObjects.Components
         /// <summary>
         ///     Gets the path of the animated entity.
         /// </summary>
-        public string Path { get; private set; }
+        public string Path { get; private set; } = string.Empty;
 
         /// <summary>
         ///     Gets the Id of the animated entity.

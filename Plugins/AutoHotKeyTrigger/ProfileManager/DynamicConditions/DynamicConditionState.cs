@@ -21,7 +21,7 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
     [DynamicLinqType]
     public class DynamicConditionState : IDynamicConditionState
     {
-        private readonly Lazy<NearbyMonsterInfo> nearbyMonsterInfo;
+        private readonly Lazy<NearbyMonsterInfo> nearbyMonsterInfo = null!;
 
         /// <summary>
         ///     Creates a new instance
@@ -74,7 +74,7 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         /// <summary>
         ///     The buff list
         /// </summary>
-        public IBuffDictionary PlayerBuffs { get; }
+        public IBuffDictionary PlayerBuffs { get; } = null!;
 
         /// <summary>
         ///     The current animation
@@ -104,12 +104,12 @@ namespace AutoHotKeyTrigger.ProfileManager.DynamicConditions
         /// <summary>
         ///     The vitals information
         /// </summary>
-        public IVitalsInfo PlayerVitals { get; }
+        public IVitalsInfo PlayerVitals { get; } = null!;
 
         /// <summary>
         ///     The flask information
         /// </summary>
-        public IFlasksInfo Flasks { get; }
+        public IFlasksInfo Flasks { get; } = null!;
 
         /// <summary>
         ///     Calculates the number of nearby monsters given a rarity selector in the outer circle.

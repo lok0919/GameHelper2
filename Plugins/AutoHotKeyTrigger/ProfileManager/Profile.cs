@@ -22,7 +22,9 @@ namespace AutoHotKeyTrigger.ProfileManager
         ///  Contains List of all the available profiles. Can be null, so do check for it before using it.
         /// </summary>
         [JsonIgnore]
+#pragma warning disable CS0414 // Field is assigned but never used (kept for compatibility with serialization model).
         private readonly Dictionary<string, Profile>? root = null;
+#pragma warning restore CS0414
 #nullable restore annotations
 
         private int contextWindowOn = -1;

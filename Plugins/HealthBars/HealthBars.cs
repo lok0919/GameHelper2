@@ -44,7 +44,7 @@ namespace HealthBars
 
         private readonly Dictionary<uint, Vector2> bPositions = new();
 
-        private ActiveCoroutine onAreaChange = null;
+        private ActiveCoroutine? onAreaChange = null;
 
         /// <inheritdoc />
         public override void DrawSettings()
@@ -274,7 +274,7 @@ namespace HealthBars
             if (File.Exists(this.SettingPathname))
             {
                 var content = File.ReadAllText(this.SettingPathname);
-                this.Settings = JsonConvert.DeserializeObject<HealthBarsSettings>(content);
+                this.Settings = JsonConvert.DeserializeObject<HealthBarsSettings>(content) ?? new HealthBarsSettings();
             }
 
             for (var i = 0; i < this.textureToValidate.Count; i++)
@@ -291,7 +291,7 @@ namespace HealthBars
         /// <inheritdoc />
         public override void SaveSettings()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname));
+            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname) ?? string.Empty);
             var settingsData = JsonConvert.SerializeObject(this.Settings, Formatting.Indented);
             File.WriteAllText(this.SettingPathname, settingsData);
         }

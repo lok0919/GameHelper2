@@ -5,6 +5,7 @@
 namespace GameHelper.RemoteObjects.UiElement
 {
     using System;
+    using System.Diagnostics.CodeAnalysis;
     using System.Numerics;
     using GameHelper.Cache;
     using GameOffsets.Objects.UiElement;
@@ -19,7 +20,7 @@ namespace GameHelper.RemoteObjects.UiElement
     {
         private Vector2 positionModifier;
         private bool show;
-        private IntPtr[] childrenAddresses;
+        private IntPtr[] childrenAddresses = Array.Empty<IntPtr>();
         private uint flags; // IsVisible and ShouldModifyPosition information
         private float localScaleMultiplier;
         private Vector2 relativePosition;
@@ -113,7 +114,7 @@ namespace GameHelper.RemoteObjects.UiElement
         /// </summary>
         public int TotalChildrens => this.childrenAddresses.Length;
 
-        public bool TryGetParent(out UiElementBase parent)
+        public bool TryGetParent([NotNullWhen(true)] out UiElementBase? parent)
         {
             if (this.parentAddress == IntPtr.Zero)
             {
@@ -141,7 +142,7 @@ namespace GameHelper.RemoteObjects.UiElement
         /// <param name="i">index of the child Ui Element.</param>
         /// <returns>the child Ui Element.</returns>
         [SkipImGuiReflection]
-        public UiElementBase this[int i]
+        public UiElementBase? this[int i]
         {
             get
             {

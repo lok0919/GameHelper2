@@ -17,7 +17,7 @@ namespace GameHelper.Cache
     internal class UiElementParents
     {
         private readonly string name;
-        private readonly UiElementParents grandparent;
+        private readonly UiElementParents? grandparent;
         private readonly GameStateTypes ownerState1;
         private readonly GameStateTypes ownerState2;
         private readonly Dictionary<IntPtr, UiElementBase> cache;
@@ -29,7 +29,7 @@ namespace GameHelper.Cache
         /// <param name="ownerStateA"><see cref="GameStateTypes"/> on which cache shouldn't be cleaned</param>
         /// <param name="ownerStateB"><see cref="GameStateTypes"/> on which cache shouldn't be cleaned</param>
         /// <param name="name">human friendly name to give to this cache</param>
-        public UiElementParents(UiElementParents grandparent, GameStateTypes ownerStateA, GameStateTypes ownerStateB, string name)
+        public UiElementParents(UiElementParents? grandparent, GameStateTypes ownerStateA, GameStateTypes ownerStateB, string name)
         {
             this.name = name;
             this.ownerState1 = ownerStateA;

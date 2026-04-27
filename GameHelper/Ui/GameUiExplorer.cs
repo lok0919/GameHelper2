@@ -55,7 +55,7 @@ namespace GameHelper.Ui
 
             for (var i = 0; i < element.TotalChildrens; i++)
             {
-                eleStruct.Children.Add(element[i]);
+                eleStruct.Children.Add(element[i]!);
             }
 
             return eleStruct;

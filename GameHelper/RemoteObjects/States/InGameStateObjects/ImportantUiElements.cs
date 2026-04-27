@@ -169,7 +169,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 var currentChild = new UiElementBase(IntPtr.Zero, this.passiveSkillTreeCache);
                 for (var i = 3; i < this.passiveskilltreenodes.TotalChildrens; i++)
                 {
-                    currentChild.Address = this.passiveskilltreenodes[i].Address;
+                    currentChild.Address = this.passiveskilltreenodes[i]!.Address;
                     if (!currentChild.IsVisible)
                     {
                         break;
@@ -193,7 +193,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 for (var i = 0; i < uie.TotalChildrens; i++)
                 {
-                    this.AddSkillTreeNodeUiElementRecursive(uie[i]);
+                    this.AddSkillTreeNodeUiElementRecursive(uie[i]!);
                 }
             }
             else

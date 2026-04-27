@@ -14,7 +14,7 @@ namespace GameHelper.Plugin
         /// <summary>
         ///     Gets or sets the plugin root directory folder.
         /// </summary>
-        public string DllDirectory;
+        public string DllDirectory = null!;
 
         /// <summary>
         ///     Gets or sets the plugin settings.

@@ -7,6 +7,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using Components;
     using GameHelper.RemoteEnums;
@@ -169,7 +170,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         /// <param name="component">component data.</param>
         /// <param name="shouldCache">should entity cache this component or not.</param>
         /// <returns>true if the entity contains the component; otherwise, false.</returns>
-        public bool TryGetComponent<T>(out T component, bool shouldCache = true)
+        public bool TryGetComponent<T>([NotNullWhen(true)] out T? component, bool shouldCache = true)
             where T : ComponentBase
         {
             component = null;

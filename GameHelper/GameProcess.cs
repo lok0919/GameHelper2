@@ -80,7 +80,7 @@ namespace GameHelper
                     var reader = this.Handle;
                     if (reader != null && !reader.IsClosed && !reader.IsInvalid)
                     {
-                        return this.Information.MainModule.BaseAddress;
+                        return this.Information.MainModule?.BaseAddress ?? IntPtr.Zero;
                     }
 
                     return IntPtr.Zero;
@@ -110,12 +110,12 @@ namespace GameHelper
         /// <summary>
         ///     Gets the game diagnostics information.
         /// </summary>
-        internal Process Information { get; private set; }
+        internal Process Information { get; private set; } = null!;
 
         /// <summary>
         ///     Gets the game handle.
         /// </summary>
-        internal SafeMemoryHandle Handle { get; private set; }
+        internal SafeMemoryHandle Handle { get; private set; } = null!;
 
         /// <summary>
         ///     Closes the handle for the game and releases all the resources.
@@ -280,7 +280,13 @@ namespace GameHelper
                     continue;
                 }
 
-                var procSize = this.Information.MainModule.ModuleMemorySize;
+                var mainModule = this.Information.MainModule;
+                if (mainModule == null)
+                {
+                    continue;
+                }
+
+                var procSize = mainModule.ModuleMemorySize;
                 var patternsInfo = PatternFinder.Find(this.Handle, baseAddress, procSize);
                 foreach (var patternInfo in patternsInfo)
                 {

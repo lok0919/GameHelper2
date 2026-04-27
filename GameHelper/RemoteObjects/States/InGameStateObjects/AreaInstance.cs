@@ -627,7 +627,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
                             break;
                         case 2:
-                            if (!(entity.Value.TryGetComponent(out ObjectMagicProperties omp) &&
+                            if (!(entity.Value.TryGetComponent(out ObjectMagicProperties? omp) &&
                                 omp.Rarity == this.entityRarityFilter))
                             {
                                 continue;
@@ -646,7 +646,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         string safeName = string.IsNullOrWhiteSpace(path) ? $"{entity.Value.Id}" : path.Replace("/", "_");
 
                         // Helpers to robustly read "name" from unknown tuple/dictionary shapes.
-                        static string TryGetKeyName(object entry)
+                        static string? TryGetKeyName(object entry)
                         {
                             if (entry == null) return null;
 
@@ -703,6 +703,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                                 if (item1 != null && item2 != null)
                                 {
                                     var k = item1.ToString();
+                                    if (k == null) continue;
                                     int v;
                                     if (item2 is int vi2) v = vi2;
                                     else if (!int.TryParse(item2.ToString(), out v)) continue;
@@ -719,9 +720,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- ObjectMagicProperties --------
-                        List<string> ompMods = null;
-                        Dictionary<string, int> ompModStats = null;
-                        string rarityStr = null;
+                        List<string>? ompMods = null;
+                        Dictionary<string, int>? ompModStats = null;
+                        string? rarityStr = null;
 
                         if (entity.Value.TryGetComponent<ObjectMagicProperties>(out var omp))
                         {
@@ -751,7 +752,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- Buffs --------
-                        List<string> buffs = null;
+                        List<string>? buffs = null;
                         if (entity.Value.TryGetComponent<Buffs>(out var buf) && buf.StatusEffects != null)
                         {
                             var list = new List<string>();
@@ -769,8 +770,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         var components = entity.Value.GetComponentNames()?.ToList();
 
                         // -------- Stats component (enum-ish keys -> string) --------
-                        Dictionary<string, int> statsByItems = null;
-                        Dictionary<string, int> statsByBuffs = null;
+                        Dictionary<string, int>? statsByItems = null;
+                        Dictionary<string, int>? statsByBuffs = null;
                         if (entity.Value.TryGetComponent<Stats>(out var stats))
                         {
                             if (stats.StatsChangedByItems != null)
@@ -787,7 +788,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- Actor component --------
-                        List<String> activeSkills = null;
+                        List<String>? activeSkills = null;
                         if (entity.Value.TryGetComponent<Actor>(out var actor) && actor.ActiveSkills != null)
                         {
                             var list = new List<string>();
@@ -810,7 +811,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- StateMachine component --------
-                        List<object> stateMachineStates = null;
+                        List<object>? stateMachineStates = null;
                         if (entity.Value.TryGetComponent<StateMachine>(out var sm) && sm.States != null)
                         {
                             stateMachineStates = new List<object>();
@@ -821,7 +822,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- MinimapIcon component --------
-                        string minimapIconName = null;
+                        string? minimapIconName = null;
                         if (entity.Value.TryGetComponent<MinimapIcon>(out var mIcon))
                         {
                             minimapIconName = mIcon.IconName;

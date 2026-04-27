@@ -33,7 +33,10 @@ namespace Launcher
         {
             var peFile = PEFile.FromFile(inputPath);
             var peImage = PEImage.FromFile(peFile);
-            var versionInfo = VersionInfoResource.FromDirectory(peImage.Resources);
+            var resources = peImage.Resources
+                ?? throw new InvalidDataException($"PE image has no resource directory: {inputPath}");
+            var versionInfo = VersionInfoResource.FromDirectory(resources)
+                ?? throw new InvalidDataException($"PE image has no version info resource: {inputPath}");
             var stringInfo = versionInfo.GetChild<StringFileInfo>(StringFileInfo.StringFileInfoKey);
             var stringTable = stringInfo.Tables[0];
             stringTable[StringTable.CommentsKey] = "";
@@ -42,9 +45,9 @@ namespace Launcher
             stringTable[StringTable.InternalNameKey] = infoName;
             stringTable[StringTable.OriginalFilenameKey] = Path.GetFileName(outputPath);
             stringTable[StringTable.ProductNameKey] = infoName;
-            versionInfo.WriteToDirectory(peImage.Resources);
+            versionInfo.WriteToDirectory(resources);
             var resourceDirectoryBuffer = new ResourceDirectoryBuffer();
-            resourceDirectoryBuffer.AddDirectory(peImage.Resources);
+            resourceDirectoryBuffer.AddDirectory(resources);
             var directory = peFile.OptionalHeader.GetDataDirectory(DataDirectoryIndex.ResourceDirectory);
             var section = peFile.GetSectionContainingRva(directory.VirtualAddress);
             section.Contents = resourceDirectoryBuffer;

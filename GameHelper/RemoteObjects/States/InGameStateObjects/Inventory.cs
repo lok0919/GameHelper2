@@ -25,7 +25,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         ///     Items addresses are in order w.r.t inventory slots. There might be duplicates or IntPtr.Zero
         ///     in case an item holds 2 slots or there is no item in the slot respectively.
         /// </summary>
-        private IntPtr[] itemsToInventorySlotMapping;
+        private IntPtr[] itemsToInventorySlotMapping = Array.Empty<IntPtr>();
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="Inventory" /> class.
@@ -143,7 +143,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             this.TotalBoxes = default;
             this.ServerRequestCounter = default;
-            this.itemsToInventorySlotMapping = null;
+            this.itemsToInventorySlotMapping = Array.Empty<IntPtr>();
             this.Items.Clear();
         }
 

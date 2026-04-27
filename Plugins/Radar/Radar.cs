@@ -41,10 +41,10 @@ namespace Radar
         /// </summary>
         private bool skipOneSettingChange = false;
         private bool isAddNewPOIHeaderOpened = false;
-        private ActiveCoroutine onMove;
-        private ActiveCoroutine onForegroundChange;
-        private ActiveCoroutine onGameClose;
-        private ActiveCoroutine onAreaChange;
+        private ActiveCoroutine? onMove;
+        private ActiveCoroutine? onForegroundChange;
+        private ActiveCoroutine? onGameClose;
+        private ActiveCoroutine? onAreaChange;
 
         private string currentAreaName = string.Empty;
         private string tmpTileName = string.Empty;
@@ -318,28 +318,29 @@ namespace Radar
             if (File.Exists(this.SettingPathname))
             {
                 var content = File.ReadAllText(this.SettingPathname);
-                this.Settings = JsonConvert.DeserializeObject<RadarSettings>(content);
+                this.Settings = JsonConvert.DeserializeObject<RadarSettings>(content) ?? new RadarSettings();
             }
 
             if (File.Exists(this.ImportantTgtPathName))
             {
                 var tgtfiles = File.ReadAllText(this.ImportantTgtPathName);
                 this.Settings.ImportantTgts = JsonConvert.DeserializeObject
-                    <Dictionary<string, Dictionary<string, string>>>(tgtfiles);
+                    <Dictionary<string, Dictionary<string, string>>>(tgtfiles)
+                    ?? new Dictionary<string, Dictionary<string, string>>();
             }
 
             if (File.Exists(this.BossArenaTgtPathName))
             {
                 var bossfiles = File.ReadAllText(this.BossArenaTgtPathName);
                 this.Settings.BossArenaTgts = JsonConvert.DeserializeObject
-                    <Dictionary<string, string>>(bossfiles);
+                    <Dictionary<string, string>>(bossfiles) ?? new Dictionary<string, string>();
             }
 
             if (File.Exists(this.StairsTgtPathName))
             {
                 var stairsfiles = File.ReadAllText(this.StairsTgtPathName);
                 this.Settings.StairsTgts = JsonConvert.DeserializeObject
-                    <Dictionary<string, string>>(stairsfiles);
+                    <Dictionary<string, string>>(stairsfiles) ?? new Dictionary<string, string>();
             }
 
             this.Settings.AddDefaultIcons(this.DllDirectory);
@@ -354,7 +355,7 @@ namespace Radar
         /// <inheritdoc/>
         public override void SaveSettings()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname));
+            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname) ?? string.Empty);
             var settingsData = JsonConvert.SerializeObject(this.Settings, Formatting.Indented);
             File.WriteAllText(this.SettingPathname, settingsData);
 

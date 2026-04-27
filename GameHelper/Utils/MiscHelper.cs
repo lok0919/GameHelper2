@@ -19,7 +19,7 @@ namespace GameHelper.Utils
     {
         private static readonly Random Rand = new();
         private static readonly Stopwatch DelayBetweenKeys = Stopwatch.StartNew();
-        private static Task<IntPtr> sendingMessage;
+        private static Task<IntPtr>? sendingMessage;
 
         internal static void ActiveSkillGemDataParser(
             uint unknownIdAndEquipmentInfo,
@@ -155,12 +155,12 @@ namespace GameHelper.Utils
                     return;
                 }
 
-                var tab = (MibTcptableOwnerPid)Marshal.PtrToStructure(buffTable, typeof(MibTcptableOwnerPid));
+                var tab = Marshal.PtrToStructure<MibTcptableOwnerPid>(buffTable);
                 var rowPtr = (IntPtr)((long)buffTable + Marshal.SizeOf(tab.DwNumEntries));
                 table = new MibTcprowOwnerPid[tab.DwNumEntries];
                 for (var i = 0; i < tab.DwNumEntries; i++)
                 {
-                    var tcpRow = (MibTcprowOwnerPid)Marshal.PtrToStructure(rowPtr, typeof(MibTcprowOwnerPid));
+                    var tcpRow = Marshal.PtrToStructure<MibTcprowOwnerPid>(rowPtr);
                     table[i] = tcpRow;
                     rowPtr = (IntPtr)((long)rowPtr + Marshal.SizeOf(tcpRow));
                 }

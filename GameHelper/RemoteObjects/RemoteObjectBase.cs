@@ -86,7 +86,7 @@ namespace GameHelper.RemoteObjects
                     }
                     else
                     {
-                        using var _ = PerformanceProfiler.Profile(GetType().FullName, "UpdateData");
+                        using var _ = PerformanceProfiler.Profile(GetType().FullName ?? string.Empty, "UpdateData");
                         this.UpdateData(hasAddressChanged);
                     }
                 }
@@ -111,7 +111,7 @@ namespace GameHelper.RemoteObjects
             {
                 if (ImGui.TreeNode(property.Name))
                 {
-                    property.ToImGui.Invoke(property.Value, null);
+                    property.ToImGui?.Invoke(property.Value, null);
 
                     ImGui.TreePop();
                 }
@@ -144,7 +144,7 @@ namespace GameHelper.RemoteObjects
         internal static IEnumerable<RemoteObjectPropertyDetail> GetToImGuiMethods(
             Type classType,
             BindingFlags propertyFlags,
-            object classObject
+            object? classObject
         )
         {
             var methodFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;

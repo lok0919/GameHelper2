@@ -38,7 +38,7 @@ namespace GameHelper
         /// <summary>
         ///     Gets the fonts loaded in the overlay.
         /// </summary>
-        public ImFontPtr[] Fonts { get; private set; }
+        public ImFontPtr[]? Fonts { get; private set; }
 
         /// <inheritdoc />
         public override async Task Run()

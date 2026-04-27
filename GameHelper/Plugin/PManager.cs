@@ -55,6 +55,7 @@ namespace GameHelper.Plugin
                   .AsParallel()
                   .Select(LoadPlugin)
                   .Where(x => x != null)
+                  .Select(x => x!)
                   .OrderBy(x => x.Name)
                   .ToList();
         }
@@ -95,6 +96,7 @@ namespace GameHelper.Plugin
                                 .Where(x => x.Name.Contains(name))
                                 .Select(LoadPlugin)
                                 .Where(y => y != null)
+                                .Select(y => y!)
                                 .ToList();
                 if (container.Count > 0)
                 {
@@ -120,7 +122,7 @@ namespace GameHelper.Plugin
                 x => (x.Attributes & FileAttributes.Hidden) == 0).ToList();
         }
 
-        private static Assembly ReadPluginFiles(DirectoryInfo pluginDirectory)
+        private static Assembly? ReadPluginFiles(DirectoryInfo pluginDirectory)
         {
             try
             {
@@ -146,7 +148,7 @@ namespace GameHelper.Plugin
         }
 
 
-        private static PluginWithName LoadPlugin(DirectoryInfo pluginDirectory)
+        private static PluginWithName? LoadPlugin(DirectoryInfo pluginDirectory)
         {
             var assembly = ReadPluginFiles(pluginDirectory);
             if (assembly != null)
@@ -159,7 +161,7 @@ namespace GameHelper.Plugin
             return null;
         }
 
-        private static PluginWithName LoadPlugin(Assembly assembly, string pluginRootDirectory)
+        private static PluginWithName? LoadPlugin(Assembly assembly, string pluginRootDirectory)
         {
             try
             {
@@ -183,8 +185,14 @@ namespace GameHelper.Plugin
                 }
 
                 var pluginCore = Activator.CreateInstance(iPluginClasses[0]) as IPCore;
+                if (pluginCore == null)
+                {
+                    Console.WriteLine($"Plugin (in {pluginRootDirectory}) {assembly} failed to instantiate IPCore-derived class.");
+                    return null;
+                }
+
                 pluginCore.SetPluginDllLocation(pluginRootDirectory);
-                return new PluginWithName(assembly.GetName().Name, pluginCore);
+                return new PluginWithName(assembly.GetName().Name ?? string.Empty, pluginCore);
             }
             catch (Exception e)
             {
@@ -261,7 +269,7 @@ namespace GameHelper.Plugin
                 {
                     if (container.Metadata.Enable)
                     {
-                        using var _ = PerformanceProfiler.Profile(container.Plugin.GetType().FullName, "DrawUI");
+                        using var _ = PerformanceProfiler.Profile(container.Plugin.GetType().FullName ?? string.Empty, "DrawUI");
                         container.Plugin.DrawUI();
                     }
                 }

@@ -90,9 +90,12 @@
             {
                 var content = File.ReadAllText(filepathname);
                 var preloadList = JsonConvert.DeserializeObject<List<KeyValuePair<string, PreloadInfo>>>(content);
-                for (var i = 0; i < preloadList.Count; i++)
+                if (preloadList != null)
                 {
-                    this.AddOrUpdate(preloadList[i].Key, preloadList[i].Value, i);
+                    for (var i = 0; i < preloadList.Count; i++)
+                    {
+                        this.AddOrUpdate(preloadList[i].Key, preloadList[i].Value, i);
+                    }
                 }
 
                 this.isCacheValid = false;

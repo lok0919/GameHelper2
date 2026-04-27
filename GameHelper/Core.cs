@@ -27,12 +27,12 @@ namespace GameHelper
         /// <summary>
         ///     Gets the GameHelper version.
         /// </summary>
-        private static string version;
+        private static string version = null!;
 
         /// <summary>
         ///     Gets the GameHelper Overlay.
         /// </summary>
-        public static GameOverlay Overlay { get; internal set; } = null;
+        public static GameOverlay Overlay { get; internal set; } = null!;
 
         /// <summary>
         ///     Gets the list of active coroutines.
@@ -163,7 +163,7 @@ namespace GameHelper
             {
                 if (ImGui.CollapsingHeader(property.Name))
                 {
-                    property.ToImGui.Invoke(property.Value, null);
+                    property.ToImGui?.Invoke(property.Value, null);
                 }
             }
         }

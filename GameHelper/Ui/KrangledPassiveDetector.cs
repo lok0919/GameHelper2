@@ -183,6 +183,11 @@ namespace GameHelper.Ui
                     ImGui.InputText("Data.json file path", ref dataJsonFilePath, 300);
                     if (ImGui.Button("Generate krangled data.json"))
                     {
+                        // TODO: see audit F-001 — JObject access chain assumes specific JSON
+                        // shape ("nodes" key, per-skill object with "skill"/"group"/"orbit"/"orbitIndex"/"out"/"in"
+                        // children). All intermediate JToken indexers can return null, but the surrounding
+                        // logic predates nullable annotations and trusts the file layout produced by the POB tool.
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
                         var dataReader = JObject.Parse(File.ReadAllText(dataJsonFilePath));
                         var dataWriter = dataReader.DeepClone().ToObject<JObject>();
                         foreach (JProperty skillStruct in dataReader["nodes"])
@@ -210,6 +215,7 @@ namespace GameHelper.Ui
                         }
 
                         File.WriteAllText(dataJsonFilePath.Replace(".json", "_krangled.json"), dataWriter.ToString(Newtonsoft.Json.Formatting.Indented));
+#pragma warning restore CS8602
                         messageToDisplay = $"{dataJsonFilePath.Replace(".json", "_krangled.json")} generated.";
                         ImGui.OpenPopup("KrangledPassiveDetectorPopUp");
                     }

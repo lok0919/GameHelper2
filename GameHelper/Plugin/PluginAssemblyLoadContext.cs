@@ -12,7 +12,7 @@
             this.resolver = new AssemblyDependencyResolver(assemblyLocation);
         }
 
-        protected override Assembly Load(AssemblyName assemblyName)
+        protected override Assembly? Load(AssemblyName assemblyName)
         {
             var path = this.resolver.ResolveAssemblyToPath(assemblyName);
             if (path != null)
