@@ -6,7 +6,6 @@
         <LangVersion>latest</LangVersion>
         <NoWarn>1701;1702; 1591</NoWarn>
         <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

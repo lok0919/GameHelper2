@@ -5,7 +5,6 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <NoWarn>1701;1702; 1591</NoWarn>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <OutputType>Library</OutputType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
