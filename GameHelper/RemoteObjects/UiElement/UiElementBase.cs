@@ -243,21 +243,31 @@ namespace GameHelper.RemoteObjects.UiElement
             this.backgroundColor = ImGuiHelper.Color(data.BackgroundColor);
         }
 
+        private const int MaxParentChainDepth = 64;
+
         /// <summary>
         ///     This function was basically parsed/read/decompiled from the game.
         ///     To find this function in the game, follow the data used in this function.
         ///     Although, this function haven't changed since last 3-4 years.
         /// </summary>
         /// <returns>Returns position without applying current element scaling values.</returns>
-        private Vector2 GetUnScaledPosition()
+        private Vector2 GetUnScaledPosition() => this.GetUnScaledPosition(0);
+
+        private Vector2 GetUnScaledPosition(int depth)
         {
+            if (depth >= MaxParentChainDepth)
+            {
+                Console.WriteLine($"[UiElementBase.GetUnScaledPosition] depth cap {MaxParentChainDepth} hit at 0x{this.Address.ToInt64():X}; possible cycle in parent chain. Returning local position (audit F-137).");
+                return this.relativePosition;
+            }
+
             // During zone/state transitions, the parent cache can be temporarily empty.
             if (!this.TryGetParent(out var myParent) || myParent == null)
             {
                 // Treat as root during the brief window; avoids hard crash.
                 return this.relativePosition;
             }
-            var parentPos = myParent.GetUnScaledPosition();
+            var parentPos = myParent.GetUnScaledPosition(depth + 1);
             if (UiElementBaseFuncs.ShouldModifyPos(this.flags))
             {
                 parentPos += myParent.positionModifier;
