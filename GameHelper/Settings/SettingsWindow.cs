@@ -239,7 +239,7 @@ namespace GameHelper.Settings
             if (isOpened)
             {
                 ImGui.TextWrapped("Please restart gamehelper or change area/zone if you make any changes over here.");
-                for (var i = 0; i < Core.GHSettings.PoiMonstersCategories2.Count; i++)
+                for (var i = Core.GHSettings.PoiMonstersCategories2.Count - 1; i >= 0; i--)
                 {
                     var (filtertype, filter, rarity, stat, group) = Core.GHSettings.PoiMonstersCategories2[i];
                     var isChanged = false;
@@ -372,7 +372,7 @@ namespace GameHelper.Settings
                     monterPathToIgnore = string.Empty;
                 }
 
-                for (var i = 0; i < Core.GHSettings.MonstersPathsToIgnore.Count; i++)
+                for (var i = Core.GHSettings.MonstersPathsToIgnore.Count - 1; i >= 0; i--)
                 {
                     ImGui.Text($"Path: {Core.GHSettings.MonstersPathsToIgnore[i]}");
                     ImGui.SameLine();
@@ -405,7 +405,7 @@ namespace GameHelper.Settings
                     specialNpcPath = string.Empty;
                 }
 
-                for (var i = 0; i < Core.GHSettings.SpecialNPCPaths.Count; i++)
+                for (var i = Core.GHSettings.SpecialNPCPaths.Count - 1; i >= 0; i--)
                 {
                     ImGui.Text($"Path: {Core.GHSettings.SpecialNPCPaths[i]}");
                     ImGui.SameLine();
@@ -446,7 +446,7 @@ namespace GameHelper.Settings
                     filterGroup = 0;
                 }
 
-                for (var i = 0; i < Core.GHSettings.SpecialMiscObjPaths.Count; i++)
+                for (var i = Core.GHSettings.SpecialMiscObjPaths.Count - 1; i >= 0; i--)
                 {
                     ImGui.Text($"Path: {Core.GHSettings.SpecialMiscObjPaths[i].path}, GroupId: {Core.GHSettings.SpecialMiscObjPaths[i].group}");
                     ImGui.SameLine();
