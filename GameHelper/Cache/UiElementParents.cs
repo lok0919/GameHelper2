@@ -46,26 +46,36 @@ namespace GameHelper.Cache
         /// <param name="address">address pointing to the parent UiElement.</param>
         public void AddIfNotExists(IntPtr address)
         {
-            if (address != IntPtr.Zero)
+            if (address == IntPtr.Zero)
             {
-                if (this.grandparent != null && this.grandparent.cache.ContainsKey(address))
+                return;
+            }
+
+            if (this.grandparent != null)
+            {
+                bool inGrandparent;
+                lock (this.grandparent.cache)
                 {
+                    inGrandparent = this.grandparent.cache.ContainsKey(address);
                 }
-                else
+
+                if (inGrandparent)
                 {
-                    lock (this.cache)
+                    return;
+                }
+            }
+
+            lock (this.cache)
+            {
+                if (!this.cache.ContainsKey(address))
+                {
+                    try
                     {
-                        if (!this.cache.ContainsKey(address))
-                        {
-                            try
-                            {
-                                this.cache.Add(address, new(address, this));
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine($"Failed to add the UiElement Parent in the cache. 0x{address.ToInt64():X} due to {e}");
-                            }
-                        }
+                        this.cache.Add(address, new(address, this));
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Failed to add the UiElement Parent in the cache. 0x{address.ToInt64():X} due to {e}");
                     }
                 }
             }
@@ -117,14 +127,27 @@ namespace GameHelper.Cache
             });
         }
 
-        public void Clear() => this.cache.Clear();
+        public void Clear()
+        {
+            lock (this.cache)
+            {
+                this.cache.Clear();
+            }
+        }
 
         public void ToImGui()
         {
-            ImGui.Text($"Total Size: {this.cache.Count}");
+            KeyValuePair<IntPtr, UiElementBase>[] snapshot;
+            lock (this.cache)
+            {
+                snapshot = new KeyValuePair<IntPtr, UiElementBase>[this.cache.Count];
+                ((ICollection<KeyValuePair<IntPtr, UiElementBase>>)this.cache).CopyTo(snapshot, 0);
+            }
+
+            ImGui.Text($"Total Size: {snapshot.Length}");
             if (ImGui.TreeNode($"{this.name} Parent UiElements"))
             {
-                foreach (var (key, value) in this.cache)
+                foreach (var (key, value) in snapshot)
                 {
                     if (ImGui.TreeNode($"0x{key.ToInt64():X}"))
                     {
@@ -142,7 +165,17 @@ namespace GameHelper.Cache
             while (true)
             {
                 yield return new(GameHelperEvents.OnClose);
-                this.cache.Clear();
+                try
+                {
+                    lock (this.cache)
+                    {
+                        this.cache.Clear();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UiElementParents.OnGameClose] {ex}");
+                }
             }
         }
 
@@ -151,10 +184,20 @@ namespace GameHelper.Cache
             while (true)
             {
                 yield return new(RemoteEvents.StateChanged);
-                if (Core.States.GameCurrentState != this.ownerState1 &&
-                    Core.States.GameCurrentState != this.ownerState2)
+                try
                 {
-                    this.cache.Clear();
+                    if (Core.States.GameCurrentState != this.ownerState1 &&
+                        Core.States.GameCurrentState != this.ownerState2)
+                    {
+                        lock (this.cache)
+                        {
+                            this.cache.Clear();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UiElementParents.OnStateChange] {ex}");
                 }
             }
         }
