@@ -164,6 +164,8 @@ namespace GameHelper.RemoteObjects.Components
             this.OwnerEntityAddress = data.Header.EntityPtr;
             this.Animation = (Animation)data.AnimationId;
             this.IsSkillUsable.Clear();
+            this.ActiveSkills.Clear();
+            this.ActiveSkillCooldowns.Clear();
             // var skillsvaalsouls = reader.ReadStdVector<VaalSoulStructure>(data.VaalSoulsPtr);
             // for (var i = 0; i < skillsvaalsouls.Length; i++)
             // {

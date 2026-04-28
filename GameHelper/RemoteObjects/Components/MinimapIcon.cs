@@ -47,7 +47,11 @@ namespace GameHelper.RemoteObjects.Components
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MinimapIcon.TryReadUtf16String] {address.ToInt64():X}: {ex.Message}");
+            }
+
             return null;
         }
 
@@ -71,7 +75,10 @@ namespace GameHelper.RemoteObjects.Components
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MinimapIcon.UpdateData] {this.Address.ToInt64():X}: {ex.Message}");
+            }
         }
     }
 }

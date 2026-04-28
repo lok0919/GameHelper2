@@ -35,7 +35,11 @@ namespace GameHelper.RemoteObjects.Components
         /// <inheritdoc />
         protected override void CleanUpData()
         {
-            throw new Exception("Component Address should never be Zero.");
+            // Zero the only mutable field in the base. Derived components
+            // can override to clean their own state. Previously this threw
+            // unconditionally (audit F-112) which propagated through the
+            // Address setter and (pre-Phase-1) killed the entity reader.
+            this.OwnerEntityAddress = IntPtr.Zero;
         }
 
         /// <inheritdoc />
