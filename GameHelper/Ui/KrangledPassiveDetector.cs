@@ -132,7 +132,14 @@ namespace GameHelper.Ui
 
                         foreach(var (pos, skillId) in standardSkillTree)
                         {
-                            var krangledSkillId = krangledSkillTree[pos];
+                            // F-174: use TryGetValue to avoid KeyNotFoundException when pos is
+                            // missing from krangledSkillTree (which is exactly the case the
+                            // earlier missingInKrangled enumeration tracked - line 117-123).
+                            if (!krangledSkillTree.TryGetValue(pos, out var krangledSkillId))
+                            {
+                                continue;
+                            }
+
                             if (skillConvertor.TryGetValue(skillId, out var value) && value != krangledSkillId)
                             {
                                 Console.WriteLine($"Error: {skillId}->{value} (new value {krangledSkillId}) already exists in skill convertor.");
