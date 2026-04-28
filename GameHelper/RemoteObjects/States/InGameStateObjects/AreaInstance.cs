@@ -903,9 +903,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.PerFrameDataUpdate);
-                if (this.Address != IntPtr.Zero)
+                try
                 {
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero)
+                    {
+                        this.UpdateData(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[AreaInstance.OnPerFrame] {ex}");
                 }
             }
         }

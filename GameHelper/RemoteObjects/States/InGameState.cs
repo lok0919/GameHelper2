@@ -90,9 +90,16 @@ namespace GameHelper.RemoteObjects.States
             while (true)
             {
                 yield return new Wait(GameHelperEvents.PerFrameDataUpdate);
-                if (this.Address != IntPtr.Zero)
+                try
                 {
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero)
+                    {
+                        this.UpdateData(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[InGameState.OnPerFrame] {ex}");
                 }
             }
         }

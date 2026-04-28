@@ -223,12 +223,19 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.PerFrameDataUpdate);
-                if (this.Address != IntPtr.Zero &&
-                    Core.States.GameCurrentState is GameStateTypes.InGameState or GameStateTypes.EscapeState)
+                try
                 {
-                    // sending false because "true" use-case is handled
-                    // by UpdateData function when address actually gets changed.
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero &&
+                        Core.States.GameCurrentState is GameStateTypes.InGameState or GameStateTypes.EscapeState)
+                    {
+                        // sending false because "true" use-case is handled
+                        // by UpdateData function when address actually gets changed.
+                        this.UpdateData(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ImportantUiElements.OnPerFrame] {ex}");
                 }
             }
         }

@@ -170,7 +170,14 @@ namespace GameHelper.RemoteObjects
             while (true)
             {
                 yield return new Wait(RemoteEvents.AreaChanged);
-                if (this.Address != IntPtr.Zero)
+                if (this.Address == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                LoadedFilesRootObject[] filesRootObjs;
+                SafeMemoryHandle reader;
+                try
                 {
                     var areaHash = Core.States.InGameStateObject.CurrentAreaInstance.AreaHash;
                     var iH = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.IsHideout;
@@ -186,15 +193,36 @@ namespace GameHelper.RemoteObjects
                     this.areaAlreadyDone = false;
                     this.areaHashCache = areaHash;
 
-                    var filesRootObjs = this.GetAllPointers();
-                    var reader = Core.Process.Handle;
-                    for (var i = 0; i < filesRootObjs.Length; i++)
+                    filesRootObjs = this.GetAllPointers();
+                    reader = Core.Process.Handle;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[LoadedFiles.OnAreaChange.setup] {ex}");
+                    continue;
+                }
+
+                for (var i = 0; i < filesRootObjs.Length; i++)
+                {
+                    try
                     {
                         this.ScanForFilesParallel(reader, filesRootObjs[i]);
-                        yield return new Wait(0d);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[LoadedFiles.OnAreaChange.scan] {ex}");
                     }
 
+                    yield return new Wait(0d);
+                }
+
+                try
+                {
                     CoroutineHandler.RaiseEvent(HybridEvents.PreloadsUpdated);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[LoadedFiles.OnAreaChange.raise] {ex}");
                 }
             }
         }

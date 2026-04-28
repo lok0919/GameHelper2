@@ -245,7 +245,14 @@ namespace GameHelper.Plugin
                 yield return new Wait(GameHelperEvents.TimeToSaveAllSettings);
                 foreach (var container in Plugins)
                 {
-                    container.Plugin.SaveSettings();
+                    try
+                    {
+                        container.Plugin.SaveSettings();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[PManager.SavePluginSettingsCoroutine] {container.Name} threw on save: {ex}");
+                    }
                 }
             }
         }
@@ -269,8 +276,15 @@ namespace GameHelper.Plugin
                 {
                     if (container.Metadata.Enable)
                     {
-                        using var _ = PerformanceProfiler.Profile(container.Plugin.GetType().FullName ?? string.Empty, "DrawUI");
-                        container.Plugin.DrawUI();
+                        try
+                        {
+                            using var _ = PerformanceProfiler.Profile(container.Plugin.GetType().FullName ?? string.Empty, "DrawUI");
+                            container.Plugin.DrawUI();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[PManager.DrawPluginUiRenderCoroutine] {container.Name} threw: {ex}");
+                        }
                     }
                 }
             }
