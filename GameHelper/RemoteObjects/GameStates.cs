@@ -19,6 +19,7 @@ namespace GameHelper.RemoteObjects
     /// </summary>
     public class GameStates : RemoteObjectBase
     {
+        private readonly object gameStatesLock = new();
         private IntPtr currentStateAddress = IntPtr.Zero;
         private GameStateTypes currentStateName = GameStateTypes.GameNotLoaded;
         private GameStateStaticOffset myStaticObj;
@@ -92,18 +93,22 @@ namespace GameHelper.RemoteObjects
             var reader = Core.Process.Handle;
             if (hasAddressChanged)
             {
-                this.myStaticObj = reader.ReadMemory<GameStateStaticOffset>(this.Address);
-                var data = reader.ReadMemory<GameStateOffset>(this.myStaticObj.GameState);
-                for (var i = 0; i < GameStateHelper.TOTAL_STATES; i++)
+                lock (this.gameStatesLock)
                 {
-                    this.AllStates[data.States[i].X] = (GameStateTypes)i;
-                }
+                    this.myStaticObj = reader.ReadMemory<GameStateStaticOffset>(this.Address);
+                    var data = reader.ReadMemory<GameStateOffset>(this.myStaticObj.GameState);
+                    for (var i = 0; i < GameStateHelper.TOTAL_STATES; i++)
+                    {
+                        this.AllStates[data.States[i].X] = (GameStateTypes)i;
+                    }
 
-                this.AreaLoading.Address = data.States[0].X;
-                this.InGameStateObject.Address = data.States[4].X;
+                    this.AreaLoading.Address = data.States[0].X;
+                    this.InGameStateObject.Address = data.States[4].X;
+                }
             }
             else
             {
+                // Caller (OnPerFrame) takes gameStatesLock around this call.
                 var data = reader.ReadMemory<GameStateOffset>(this.myStaticObj.GameState);
                 var cStateAddr = reader.ReadMemory<IntPtr>(data.CurrentStatePtr.Last - 0x10); // Get 2nd-last ptr.
                 if (cStateAddr != IntPtr.Zero && cStateAddr != this.currentStateAddress)
@@ -117,12 +122,15 @@ namespace GameHelper.RemoteObjects
         /// <inheritdoc />
         protected override void CleanUpData()
         {
-            this.myStaticObj = default;
-            this.currentStateAddress = IntPtr.Zero;
-            this.GameCurrentState = GameStateTypes.GameNotLoaded;
-            this.AllStates.Clear();
-            this.AreaLoading.Address = IntPtr.Zero;
-            this.InGameStateObject.Address = IntPtr.Zero;
+            lock (this.gameStatesLock)
+            {
+                this.myStaticObj = default;
+                this.currentStateAddress = IntPtr.Zero;
+                this.GameCurrentState = GameStateTypes.GameNotLoaded;
+                this.AllStates.Clear();
+                this.AreaLoading.Address = IntPtr.Zero;
+                this.InGameStateObject.Address = IntPtr.Zero;
+            }
         }
 
         private IEnumerator<Wait> OnPerFrame()
@@ -130,9 +138,19 @@ namespace GameHelper.RemoteObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.PerFrameDataUpdate);
-                if (this.Address != IntPtr.Zero)
+                try
                 {
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero)
+                    {
+                        lock (this.gameStatesLock)
+                        {
+                            this.UpdateData(false);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameStates.OnPerFrame] {ex}");
                 }
             }
         }

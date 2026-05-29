@@ -24,6 +24,6 @@ namespace GameHelper.Utils
         /// <summary>
         ///     ToImGui method of the property.
         /// </summary>
-        public MethodInfo ToImGui;
+        public MethodInfo? ToImGui;
     }
 }

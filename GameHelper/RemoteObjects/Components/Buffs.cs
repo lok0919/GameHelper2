@@ -68,6 +68,22 @@ namespace GameHelper.RemoteObjects.Components
             this.StatusEffects.Clear();
             var statusEffects = reader.ReadStdVector<IntPtr>(data.StatusEffectPtr);
             Array.Fill(this.FlaskActive, false);
+
+            // F-129: snapshot the 4-level Player.Id chain once. Each access goes
+            // through RemoteObjectBase.Address.get (a lock); re-traversing per-loop
+            // is both costly and racy during state transitions. NRE during the
+            // chain -> playerId stays uint.MaxValue, all flask matches fail
+            // (statusEffectData.SourceEntityId is uint, max value is unreachable).
+            uint playerId;
+            try
+            {
+                playerId = Core.States.InGameStateObject.CurrentAreaInstance.Player.Id;
+            }
+            catch (NullReferenceException)
+            {
+                playerId = uint.MaxValue;
+            }
+
             for (var i = 0; i < statusEffects.Length; i++)
             {
                 var statusEffectData = reader.ReadMemory<StatusEffectStruct>(statusEffects[i]);
@@ -76,7 +92,7 @@ namespace GameHelper.RemoteObjects.Components
                     continue;
                 }
 
-                if (Core.States.InGameStateObject.CurrentAreaInstance.Player.Id != statusEffectData.SourceEntityId)
+                if (playerId != statusEffectData.SourceEntityId)
                 {
                     statusEffectData.FlaskSlot = -1;
                 }

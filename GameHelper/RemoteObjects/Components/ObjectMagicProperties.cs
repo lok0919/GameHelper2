@@ -78,6 +78,8 @@ namespace GameHelper.RemoteObjects.Components
 
             if (hasAddressChanged)
             {
+                this.Mods.Clear();
+                this.ModNames.Clear();
                 AddToMods(this.Mods, reader.ReadStdVector<ModArrayStruct>(data.Details1.Mods.ImplicitMods));
                 AddToMods(this.Mods, reader.ReadStdVector<ModArrayStruct>(data.Details1.Mods.ExplicitMods));
                 AddToMods(this.Mods, reader.ReadStdVector<ModArrayStruct>(data.Details1.Mods.EnchantMods));

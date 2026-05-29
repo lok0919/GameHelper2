@@ -4,6 +4,7 @@
 
 namespace GameHelper
 {
+    using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
     using ClickableTransparentOverlay;
@@ -38,7 +39,7 @@ namespace GameHelper
         /// <summary>
         ///     Gets the fonts loaded in the overlay.
         /// </summary>
-        public ImFontPtr[] Fonts { get; private set; }
+        public ImFontPtr[]? Fonts { get; private set; }
 
         /// <inheritdoc />
         public override async Task Run()
@@ -86,11 +87,22 @@ namespace GameHelper
         protected override void Render()
         {
             PerformanceProfiler.StartFrame();
-            CoroutineHandler.Tick(ImGui.GetIO().DeltaTime);
-            CoroutineHandler.RaiseEvent(GameHelperEvents.PerFrameDataUpdate);
-            CoroutineHandler.RaiseEvent(GameHelperEvents.PostPerFrameDataUpdate);
-            CoroutineHandler.RaiseEvent(GameHelperEvents.OnRender);
-            CoroutineHandler.RaiseEvent(GameHelperEvents.OnPostRender);
+
+            try { CoroutineHandler.Tick(ImGui.GetIO().DeltaTime); }
+            catch (Exception ex) { Console.WriteLine($"[GameOverlay.Render.Tick] {ex}"); }
+
+            try { CoroutineHandler.RaiseEvent(GameHelperEvents.PerFrameDataUpdate); }
+            catch (Exception ex) { Console.WriteLine($"[GameOverlay.Render.PerFrameDataUpdate] {ex}"); }
+
+            try { CoroutineHandler.RaiseEvent(GameHelperEvents.PostPerFrameDataUpdate); }
+            catch (Exception ex) { Console.WriteLine($"[GameOverlay.Render.PostPerFrameDataUpdate] {ex}"); }
+
+            try { CoroutineHandler.RaiseEvent(GameHelperEvents.OnRender); }
+            catch (Exception ex) { Console.WriteLine($"[GameOverlay.Render.OnRender] {ex}"); }
+
+            try { CoroutineHandler.RaiseEvent(GameHelperEvents.OnPostRender); }
+            catch (Exception ex) { Console.WriteLine($"[GameOverlay.Render.OnPostRender] {ex}"); }
+
             if (!Core.GHSettings.IsOverlayRunning)
             {
                 this.Close();

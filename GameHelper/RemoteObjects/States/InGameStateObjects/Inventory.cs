@@ -25,7 +25,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         ///     Items addresses are in order w.r.t inventory slots. There might be duplicates or IntPtr.Zero
         ///     in case an item holds 2 slots or there is no item in the slot respectively.
         /// </summary>
-        private IntPtr[] itemsToInventorySlotMapping;
+        private IntPtr[] itemsToInventorySlotMapping = Array.Empty<IntPtr>();
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="Inventory" /> class.
@@ -143,7 +143,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             this.TotalBoxes = default;
             this.ServerRequestCounter = default;
-            this.itemsToInventorySlotMapping = null;
+            this.itemsToInventorySlotMapping = Array.Empty<IntPtr>();
             this.Items.Clear();
         }
 
@@ -179,10 +179,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         var item = new Item(invItem.Item);
                         if (!string.IsNullOrEmpty(item.Path))
                         {
-                            if (!this.Items.TryAdd(invItemPtr, item))
-                            {
-                                throw new Exception("Failed to add item into the Inventory Item Dict.");
-                            }
+                            // TryAdd returns false when another parallel worker already inserted
+                            // this invItemPtr — legitimate race on duplicate pointers, not an
+                            // error. Drop the previously-thrown bare Exception (audit F-130)
+                            // which would otherwise propagate as AggregateException and kill
+                            // the OnTimeTick coroutine.
+                            this.Items.TryAdd(invItemPtr, item);
                         }
                     }
                 }
@@ -202,9 +204,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             while (true)
             {
                 yield return new Wait(0.02d);
-                if (this.Address != IntPtr.Zero)
+                try
                 {
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero)
+                    {
+                        this.UpdateData(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Inventory.OnTimeTick] {ex}");
                 }
             }
         }

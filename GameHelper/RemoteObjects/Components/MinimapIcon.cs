@@ -23,7 +23,7 @@ namespace GameHelper.RemoteObjects.Components
         /// <summary>
         ///     The icon name from MinimapIcons.dat (e.g. "RewardChestExpedition").
         /// </summary>
-        public string IconName { get; private set; }
+        public string? IconName { get; private set; }
 
         /// <inheritdoc/>
         internal override void ToImGui()
@@ -32,7 +32,7 @@ namespace GameHelper.RemoteObjects.Components
             ImGui.Text($"Icon Name: {this.IconName ?? "(none)"}");
         }
 
-        private string TryReadUtf16String(IntPtr address)
+        private string? TryReadUtf16String(IntPtr address)
         {
             try
             {
@@ -47,7 +47,11 @@ namespace GameHelper.RemoteObjects.Components
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MinimapIcon.TryReadUtf16String] {address.ToInt64():X}: {ex.Message}");
+            }
+
             return null;
         }
 
@@ -71,7 +75,10 @@ namespace GameHelper.RemoteObjects.Components
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MinimapIcon.UpdateData] {this.Address.ToInt64():X}: {ex.Message}");
+            }
         }
     }
 }

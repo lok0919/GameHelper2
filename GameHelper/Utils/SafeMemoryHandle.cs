@@ -21,12 +21,19 @@ namespace GameHelper.Utils
     internal class SafeMemoryHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="SafeMemoryHandle" /> class.
+        ///     Max valid user-mode address on 64-bit Windows (48-bit addressing).
         /// </summary>
-        internal SafeMemoryHandle()
+        private const long MaxUserModeAddress = 0x7FFFFFFFFFFF;
+
+        /// <summary>
+        ///     Required by SafeHandle infrastructure for finalizer / marshaling support.
+        ///     Private to prevent callers accidentally constructing a zombie handle
+        ///     without a PID — see audit F-034. Real construction must go through
+        ///     the <see cref="SafeMemoryHandle(int)"/> ctor.
+        /// </summary>
+        private SafeMemoryHandle()
             : base(true)
         {
-            Console.WriteLine("Opening a new handle.");
         }
 
         /// <summary>
@@ -60,7 +67,8 @@ namespace GameHelper.Utils
             where T : unmanaged
         {
             T result = default;
-            if (this.IsInvalid || address.ToInt64() <= 0)
+            var addr = address.ToInt64();
+            if (this.IsInvalid || addr <= 0 || addr > MaxUserModeAddress)
             {
                 return result;
             }
@@ -114,7 +122,8 @@ namespace GameHelper.Utils
         internal T[] ReadMemoryArray<T>(IntPtr address, int nsize)
             where T : unmanaged
         {
-            if (this.IsInvalid || address.ToInt64() <= 0 || nsize <= 0)
+            var addr = address.ToInt64();
+            if (this.IsInvalid || addr <= 0 || addr > MaxUserModeAddress || nsize <= 0)
             {
                 return Array.Empty<T>();
             }
@@ -130,10 +139,12 @@ namespace GameHelper.Utils
                                         $" on address 0x{address.ToInt64():X} with size {nsize}");
                 }
 
-                if (numBytesRead.ToInt32() < nsize)
+                var expectedBytes = (long)nsize * Marshal.SizeOf<T>();
+                if (numBytesRead.ToInt64() < expectedBytes)
                 {
-                    throw new Exception($"Number of bytes read {numBytesRead.ToInt32()} is less " +
-                        $"than the passed nsize {nsize} on address 0x{address.ToInt64():X}.");
+                    throw new Exception($"Number of bytes read {numBytesRead.ToInt64()} is less " +
+                        $"than the expected {expectedBytes} bytes ({nsize} elements of size {Marshal.SizeOf<T>()}) " +
+                        $"on address 0x{address.ToInt64():X}.");
                 }
 
                 return buffer;
@@ -359,10 +370,18 @@ namespace GameHelper.Utils
         internal List<TValue> ReadStdList<TValue>(StdList nativeContainer)
             where TValue : unmanaged
         {
+            const int MaxIterations = 100_000;
             var retList = new List<TValue>();
             var currNodeAddress = this.ReadMemory<StdListNode>(nativeContainer.Head).Next;
+            var iterations = 0;
             while (currNodeAddress != nativeContainer.Head)
             {
+                if (++iterations > MaxIterations)
+                {
+                    Console.WriteLine($"[SafeMemoryHandle.ReadStdList] iteration cap {MaxIterations} hit; possible cycle in torn list. Returning partial result.");
+                    break;
+                }
+
                 var currNode = this.ReadMemory<StdListNode<TValue>>(currNodeAddress);
                 if (currNodeAddress == IntPtr.Zero)
                 {

@@ -61,6 +61,10 @@ namespace GameHelper.RemoteObjects.Components
 
             if (hasAddressChanged)
             {
+                this.ImplicitMods.Clear();
+                this.ExplicitMods.Clear();
+                this.EnchantMods.Clear();
+                this.HellscapeMods.Clear();
                 ObjectMagicProperties.AddToMods(this.ImplicitMods, reader.ReadStdVector<ModArrayStruct>(data.Details0.Mods.ImplicitMods));
                 ObjectMagicProperties.AddToMods(this.ExplicitMods, reader.ReadStdVector<ModArrayStruct>(data.Details0.Mods.ExplicitMods));
                 ObjectMagicProperties.AddToMods(this.EnchantMods, reader.ReadStdVector<ModArrayStruct>(data.Details0.Mods.EnchantMods));

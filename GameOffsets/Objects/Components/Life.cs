@@ -60,7 +60,15 @@
                 return 0;
             }
 
-            return (int)Math.Round(100d * this.Current / this.Unreserved);
+            // Guard against full-reservation (e.g. Mana with multiple auras) - Unreserved
+            // can be 0 or negative. Returning 0 mirrors the Total==0 fallback (audit F-023).
+            var unreserved = this.Unreserved;
+            if (unreserved <= 0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round(100d * this.Current / unreserved);
         }
 
         /// <summary>

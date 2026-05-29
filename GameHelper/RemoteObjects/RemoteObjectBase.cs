@@ -71,24 +71,37 @@ namespace GameHelper.RemoteObjects
 
             set
             {
+                bool hasAddressChanged;
                 lock (this.updateLock)
                 {
-                    var hasAddressChanged = this.address != value;
+                    hasAddressChanged = this.address != value;
                     if (!(hasAddressChanged || this.forceUpdate))
                     {
                         return;
                     }
 
                     this.address = value;
+                }
+
+                // F-095: UpdateData/CleanUpData run OUTSIDE the lock. Holding updateLock
+                // for the duration of an arbitrary memory-read sequence would block every
+                // reader of Address.get. The try/catch wraps the post-lock work so derived
+                // class throws still get logged + swallowed (Phase 1 C1a behavior preserved).
+                try
+                {
                     if (value == IntPtr.Zero)
                     {
                         this.CleanUpData();
                     }
                     else
                     {
-                        using var _ = PerformanceProfiler.Profile(GetType().FullName, "UpdateData");
+                        using var _ = PerformanceProfiler.Profile(GetType().FullName ?? string.Empty, "UpdateData");
                         this.UpdateData(hasAddressChanged);
                     }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{this.GetType().Name}.Address.set] {ex}");
                 }
             }
         }
@@ -111,7 +124,7 @@ namespace GameHelper.RemoteObjects
             {
                 if (ImGui.TreeNode(property.Name))
                 {
-                    property.ToImGui.Invoke(property.Value, null);
+                    property.ToImGui?.Invoke(property.Value, null);
 
                     ImGui.TreePop();
                 }
@@ -144,7 +157,7 @@ namespace GameHelper.RemoteObjects
         internal static IEnumerable<RemoteObjectPropertyDetail> GetToImGuiMethods(
             Type classType,
             BindingFlags propertyFlags,
-            object classObject
+            object? classObject
         )
         {
             var methodFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;

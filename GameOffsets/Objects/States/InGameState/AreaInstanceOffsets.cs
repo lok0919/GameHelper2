@@ -8,12 +8,12 @@ namespace GameOffsets.Objects.States.InGameState
     public struct AreaInstanceOffsets
     {
         [FieldOffset(0x0C4)] public byte CurrentAreaLevel;
-        [FieldOffset(0x104)] public uint CurrentAreaHash;
+        [FieldOffset(0x11C)] public uint CurrentAreaHash;
         // Env which are activated. Keys can be found in Environments.dat file.
-        [FieldOffset(0x958)] public StdVector Environments; // EnvironmentStruct
-        [FieldOffset(0xA08)] public LocalPlayerStruct PlayerInfo;
-        [FieldOffset(0xB50)] public EntityListStruct Entities;
-        [FieldOffset(0xD38)] public TerrainStruct TerrainMetadata;
+        [FieldOffset(0x970)] public StdVector Environments; // EnvironmentStruct
+        [FieldOffset(0xA20)] public LocalPlayerStruct PlayerInfo;
+        [FieldOffset(0xB68)] public EntityListStruct Entities;
+        [FieldOffset(0xD50)] public TerrainStruct TerrainMetadata;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -69,7 +69,7 @@ namespace GameOffsets.Objects.States.InGameState
             return $"id: {this.id}";
         }
 
-        public override bool Equals(object ob)
+        public override bool Equals(object? ob)
         {
             if (ob is EntityNodeKey c)
             {

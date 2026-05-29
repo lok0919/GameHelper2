@@ -36,7 +36,7 @@ namespace AutoHotKeyTrigger
         private readonly List<string> keyPressInfo = new();
         private bool keyPressInfoAdded = false;
         private bool isDebugWindowHovered = false;
-        private ActiveCoroutine onAreaChange;
+        private ActiveCoroutine? onAreaChange;
         private string debugMessage = string.Empty;
         private string newProfileName = string.Empty;
         private bool stopShowingAutoQuitWarning = false;
@@ -272,7 +272,8 @@ namespace AutoHotKeyTrigger
         {
             var jsonData2 = File.ReadAllText(this.DllDirectory + @"/StatusEffectGroup.json");
             JsonDataHelper.StatusEffectGroups = JsonConvert.DeserializeObject<
-                Dictionary<string, List<string>>>(jsonData2);
+                Dictionary<string, List<string>>>(jsonData2)
+                ?? new Dictionary<string, List<string>>();
 
             if (File.Exists(this.SettingPathname))
             {
@@ -282,7 +283,7 @@ namespace AutoHotKeyTrigger
                     new JsonSerializerSettings
                     {
                         TypeNameHandling = TypeNameHandling.Auto
-                    });
+                    }) ?? new AutoHotKeyTriggerSettings();
             }
             else
             {
@@ -295,7 +296,7 @@ namespace AutoHotKeyTrigger
         /// <inheritdoc />
         public override void SaveSettings()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname));
+            Directory.CreateDirectory(Path.GetDirectoryName(this.SettingPathname) ?? string.Empty);
             var settingsData = JsonConvert.SerializeObject(this.Settings,
                 Formatting.Indented,
                 new JsonSerializerSettings

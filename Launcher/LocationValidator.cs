@@ -23,11 +23,16 @@ namespace Launcher
         ///     If it does, print the issue to the stdout.
         /// </summary>
         /// <returns>returns true in case of good path otherwise false.</returns>
-        public static bool IsGameHelperLocationGood(out string message)
+        public static bool IsGameHelperLocationGood(out string? message)
         {
             message = null;
             var currentProcessPath = Assembly.GetExecutingAssembly().Location;
             var directoryPath = Path.GetDirectoryName(currentProcessPath);
+            if (string.IsNullOrEmpty(directoryPath))
+            {
+                return true;
+            }
+
             var pathMatch = BadNameRegex.Match(directoryPath);
             if (pathMatch.Success)
             {

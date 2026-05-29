@@ -65,7 +65,7 @@ namespace Launcher
                 }
 
                 var fileContent = File.ReadAllText(tempFileName);
-                return JsonConvert.DeserializeObject<List<string>>(fileContent);
+                return JsonConvert.DeserializeObject<List<string>>(fileContent) ?? (IReadOnlyList<string>)Array.Empty<string>();
             }
             catch (Exception ex)
             {
@@ -87,7 +87,7 @@ namespace Launcher
         private static string GetDirectoryPath()
         {
             var currentProcessPath = Assembly.GetExecutingAssembly().Location;
-            return Path.GetDirectoryName(currentProcessPath);
+            return Path.GetDirectoryName(currentProcessPath) ?? string.Empty;
         }
     }
 }

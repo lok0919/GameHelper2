@@ -278,11 +278,14 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 return;
             }
 
+            var staleCleanup = Core.GHSettings.EnableStaleEntityCleanup;
+            var staleThreshold = Core.GHSettings.StaleEntityFrameThreshold;
             this.uselesssEntities = 0;
             Parallel.ForEach(data, (kv) =>
             {
                 if (kv.Value.IsValid)
                 {
+                    kv.Value.ResetInvalidFrames();
                     if (dc == false && kv.Value.EntityState == EntityStates.Useless)
                     {
                         Interlocked.Increment(ref this.uselesssEntities);
@@ -290,16 +293,26 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 }
                 else
                 {
+                    kv.Value.IncrementInvalidFrames();
+
+                    var shouldRemove = false;
+
                     if (kv.Value.EntityState == EntityStates.MonsterFriendly ||
                         (kv.Value.CanExplodeOrRemovedFromGame &&
                         this.Player.DistanceFrom(kv.Value) < AreaInstanceConstants.NETWORK_BUBBLE_RADIUS))
                     {
-                        // This logic isn't perfect in case something happens to the entity before
-                        // we can cache the location of that entity. In that case we will just
-                        // delete that entity anyway. This activity is fine as long as it doesn't
-                        // crash the GameHelper. This logic is to detect if entity exploded due to
-                        // explodi-chest or just left the network bubble since entity leaving network
-                        // bubble is same as entity exploded.
+                        shouldRemove = true;
+                    }
+
+                    // Time-based cleanup: remove entities invalid for N consecutive frames.
+                    if (!shouldRemove && staleCleanup &&
+                        kv.Value.ConsecutiveInvalidFrames >= staleThreshold)
+                    {
+                        shouldRemove = true;
+                    }
+
+                    if (shouldRemove)
+                    {
                         data.TryRemove(kv.Key, out _);
                         if (dc == false)
                         {
@@ -520,7 +533,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     }
                     else
                     {
-                        throw new Exception($"SubterrainHeightArray Length {arrayLength} less-than index {index}");
+                        Console.WriteLine($"[AreaInstance.GetSubTerrainHeight] OOR: len={arrayLength}, index={index} - returning 0 (audit F-138).");
+                        return 0;
                     }
             }
 #else
@@ -614,7 +628,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
                             break;
                         case 2:
-                            if (!(entity.Value.TryGetComponent(out ObjectMagicProperties omp) &&
+                            if (!(entity.Value.TryGetComponent(out ObjectMagicProperties? omp) &&
                                 omp.Rarity == this.entityRarityFilter))
                             {
                                 continue;
@@ -633,7 +647,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         string safeName = string.IsNullOrWhiteSpace(path) ? $"{entity.Value.Id}" : path.Replace("/", "_");
 
                         // Helpers to robustly read "name" from unknown tuple/dictionary shapes.
-                        static string TryGetKeyName(object entry)
+                        static string? TryGetKeyName(object entry)
                         {
                             if (entry == null) return null;
 
@@ -690,6 +704,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                                 if (item1 != null && item2 != null)
                                 {
                                     var k = item1.ToString();
+                                    if (k == null) continue;
                                     int v;
                                     if (item2 is int vi2) v = vi2;
                                     else if (!int.TryParse(item2.ToString(), out v)) continue;
@@ -706,9 +721,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- ObjectMagicProperties --------
-                        List<string> ompMods = null;
-                        Dictionary<string, int> ompModStats = null;
-                        string rarityStr = null;
+                        List<string>? ompMods = null;
+                        Dictionary<string, int>? ompModStats = null;
+                        string? rarityStr = null;
 
                         if (entity.Value.TryGetComponent<ObjectMagicProperties>(out var omp))
                         {
@@ -738,7 +753,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- Buffs --------
-                        List<string> buffs = null;
+                        List<string>? buffs = null;
                         if (entity.Value.TryGetComponent<Buffs>(out var buf) && buf.StatusEffects != null)
                         {
                             var list = new List<string>();
@@ -756,8 +771,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         var components = entity.Value.GetComponentNames()?.ToList();
 
                         // -------- Stats component (enum-ish keys -> string) --------
-                        Dictionary<string, int> statsByItems = null;
-                        Dictionary<string, int> statsByBuffs = null;
+                        Dictionary<string, int>? statsByItems = null;
+                        Dictionary<string, int>? statsByBuffs = null;
                         if (entity.Value.TryGetComponent<Stats>(out var stats))
                         {
                             if (stats.StatsChangedByItems != null)
@@ -774,7 +789,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- Actor component --------
-                        List<String> activeSkills = null;
+                        List<String>? activeSkills = null;
                         if (entity.Value.TryGetComponent<Actor>(out var actor) && actor.ActiveSkills != null)
                         {
                             var list = new List<string>();
@@ -797,7 +812,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- StateMachine component --------
-                        List<object> stateMachineStates = null;
+                        List<object>? stateMachineStates = null;
                         if (entity.Value.TryGetComponent<StateMachine>(out var sm) && sm.States != null)
                         {
                             stateMachineStates = new List<object>();
@@ -808,7 +823,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         // -------- MinimapIcon component --------
-                        string minimapIconName = null;
+                        string? minimapIconName = null;
                         if (entity.Value.TryGetComponent<MinimapIcon>(out var mIcon))
                         {
                             minimapIconName = mIcon.IconName;
@@ -889,9 +904,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.PerFrameDataUpdate);
-                if (this.Address != IntPtr.Zero)
+                try
                 {
-                    this.UpdateData(false);
+                    if (this.Address != IntPtr.Zero)
+                    {
+                        this.UpdateData(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[AreaInstance.OnPerFrame] {ex}");
                 }
             }
         }

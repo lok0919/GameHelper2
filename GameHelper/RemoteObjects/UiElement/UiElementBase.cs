@@ -5,6 +5,7 @@
 namespace GameHelper.RemoteObjects.UiElement
 {
     using System;
+    using System.Diagnostics.CodeAnalysis;
     using System.Numerics;
     using GameHelper.Cache;
     using GameOffsets.Objects.UiElement;
@@ -19,7 +20,12 @@ namespace GameHelper.RemoteObjects.UiElement
     {
         private Vector2 positionModifier;
         private bool show;
-        private IntPtr[] childrenAddresses;
+        private IntPtr[] childrenAddresses = Array.Empty<IntPtr>();
+        // F-136: cache of materialised UiElementBase children — lazily built by the
+        // this[int] indexer, invalidated on address change. Slots are null until
+        // first accessed. Eliminates the per-indexer-call new+UpdateData(true) hit
+        // that was O(N) per traversal in passive-skill-tree-sized trees.
+        private UiElementBase?[] childrenCache = Array.Empty<UiElementBase?>();
         private uint flags; // IsVisible and ShouldModifyPosition information
         private float localScaleMultiplier;
         private Vector2 relativePosition;
@@ -113,7 +119,7 @@ namespace GameHelper.RemoteObjects.UiElement
         /// </summary>
         public int TotalChildrens => this.childrenAddresses.Length;
 
-        public bool TryGetParent(out UiElementBase parent)
+        public bool TryGetParent([NotNullWhen(true)] out UiElementBase? parent)
         {
             if (this.parentAddress == IntPtr.Zero)
             {
@@ -141,7 +147,7 @@ namespace GameHelper.RemoteObjects.UiElement
         /// <param name="i">index of the child Ui Element.</param>
         /// <returns>the child Ui Element.</returns>
         [SkipImGuiReflection]
-        public UiElementBase this[int i]
+        public UiElementBase? this[int i]
         {
             get
             {
@@ -150,7 +156,17 @@ namespace GameHelper.RemoteObjects.UiElement
                     return null;
                 }
 
-                return new UiElementBase(this.childrenAddresses[i], this.parents);
+                // F-136: lazy-cache child UiElementBase. First access constructs and
+                // caches; subsequent calls return the cached instance. Cache slots
+                // are reset whenever UpdateData re-reads childrenAddresses.
+                var cached = this.childrenCache[i];
+                if (cached == null)
+                {
+                    cached = new UiElementBase(this.childrenAddresses[i], this.parents);
+                    this.childrenCache[i] = cached;
+                }
+
+                return cached;
             }
         }
 
@@ -193,6 +209,10 @@ namespace GameHelper.RemoteObjects.UiElement
             this.positionModifier = Vector2.Zero;
             this.show = false;
             this.childrenAddresses = Array.Empty<IntPtr>();
+            // F-136: rebuild cache slots to match the new childrenAddresses length.
+            // Existing materialised children are dropped; they'll be re-allocated
+            // lazily on next this[int] access if still needed.
+            this.childrenCache = new UiElementBase?[this.childrenAddresses.Length];
             this.flags = 0x00;
             this.localScaleMultiplier = 0x01;
             this.relativePosition = Vector2.Zero;
@@ -225,6 +245,10 @@ namespace GameHelper.RemoteObjects.UiElement
             this.parentAddress = data.ParentPtr;
             this.parents.AddIfNotExists(data.ParentPtr);
             this.childrenAddresses = Core.Process.Handle.ReadStdVector<IntPtr>(data.ChildrensPtr);
+            // F-136: rebuild cache slots to match the new childrenAddresses length.
+            // Existing materialised children are dropped; they'll be re-allocated
+            // lazily on next this[int] access if still needed.
+            this.childrenCache = new UiElementBase?[this.childrenAddresses.Length];
 
             this.positionModifier.X = data.PositionModifier.X;
             this.positionModifier.Y = data.PositionModifier.Y;
@@ -242,21 +266,31 @@ namespace GameHelper.RemoteObjects.UiElement
             this.backgroundColor = ImGuiHelper.Color(data.BackgroundColor);
         }
 
+        private const int MaxParentChainDepth = 64;
+
         /// <summary>
         ///     This function was basically parsed/read/decompiled from the game.
         ///     To find this function in the game, follow the data used in this function.
         ///     Although, this function haven't changed since last 3-4 years.
         /// </summary>
         /// <returns>Returns position without applying current element scaling values.</returns>
-        private Vector2 GetUnScaledPosition()
+        private Vector2 GetUnScaledPosition() => this.GetUnScaledPosition(0);
+
+        private Vector2 GetUnScaledPosition(int depth)
         {
+            if (depth >= MaxParentChainDepth)
+            {
+                Console.WriteLine($"[UiElementBase.GetUnScaledPosition] depth cap {MaxParentChainDepth} hit at 0x{this.Address.ToInt64():X}; possible cycle in parent chain. Returning local position (audit F-137).");
+                return this.relativePosition;
+            }
+
             // During zone/state transitions, the parent cache can be temporarily empty.
             if (!this.TryGetParent(out var myParent) || myParent == null)
             {
                 // Treat as root during the brief window; avoids hard crash.
                 return this.relativePosition;
             }
-            var parentPos = myParent.GetUnScaledPosition();
+            var parentPos = myParent.GetUnScaledPosition(depth + 1);
             if (UiElementBaseFuncs.ShouldModifyPos(this.flags))
             {
                 parentPos += myParent.positionModifier;

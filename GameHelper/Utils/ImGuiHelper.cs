@@ -231,7 +231,7 @@ namespace GameHelper.Utils
                 var counter = 0;
                 foreach (var item in items)
                 {
-                    var selected = item.Equals(current);
+                    var selected = item?.Equals(current) ?? false;
                     if (ImGui.IsWindowAppearing() && selected)
                     {
                         ImGui.SetScrollHereY();

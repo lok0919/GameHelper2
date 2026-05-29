@@ -233,5 +233,24 @@ namespace GameHelper.Settings
         ///     Gets a value indicating if user is running Taiwan client or not.
         /// </summary>
         public bool IsTaiwanClient = false;
+
+        // ── Entity Staleness Fixes (toggleable) ──
+
+        /// <summary>
+        ///     When enabled, NPC entities are included in the cleanup logic
+        ///     so stale/despawned NPCs are removed from the entity dictionary.
+        /// </summary>
+        public bool EnableNpcEntityCleanup = true;
+
+        /// <summary>
+        ///     When enabled, entities that stay invalid for many consecutive frames
+        ///     are removed from the entity dictionary regardless of type.
+        /// </summary>
+        public bool EnableStaleEntityCleanup = true;
+
+        /// <summary>
+        ///     How many consecutive invalid frames before an entity is removed.
+        /// </summary>
+        public int StaleEntityFrameThreshold = 120;
     }
 }

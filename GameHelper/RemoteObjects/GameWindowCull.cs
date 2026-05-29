@@ -59,10 +59,16 @@ namespace GameHelper.RemoteObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.OnMoved);
-
-                // No need to check for IntPtr.zero
-                // because game will only move when it exists. :D
-                this.UpdateData(false);
+                try
+                {
+                    // No need to check for IntPtr.zero
+                    // because game will only move when it exists. :D
+                    this.UpdateData(false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameWindowCull.OnGameMove] {ex}");
+                }
             }
         }
 
@@ -71,10 +77,16 @@ namespace GameHelper.RemoteObjects
             while (true)
             {
                 yield return new Wait(GameHelperEvents.OnForegroundChanged);
-
-                // No need to check for IntPtr.zero
-                // because game will only move when it exists. :D
-                this.UpdateData(false);
+                try
+                {
+                    // No need to check for IntPtr.zero
+                    // because game will only move when it exists. :D
+                    this.UpdateData(false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameWindowCull.OnGameForegroundChange] {ex}");
+                }
             }
         }
     }

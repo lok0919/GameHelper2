@@ -25,6 +25,8 @@
             }
         }
 
+        private const int MaxStateMachineStates = 256;
+
         protected override void UpdateData(bool hasAddressChanged)
         {
             var reader = Core.Process.Handle;
@@ -33,6 +35,11 @@
 
             var stateValues = reader.ReadStdVector<long>(data.StatesValues);
             var statesCount = stateValues.Length;
+            if (statesCount > MaxStateMachineStates)
+            {
+                Console.WriteLine($"[StateMachine] Suspicious state count {statesCount} at 0x{this.Address.ToInt64():X}; capping to {MaxStateMachineStates} (audit F-120).");
+                statesCount = MaxStateMachineStates;
+            }
 
             var statesPtr = reader.ReadMemory<IntPtr>(data.StatesPtr + 0x10);
             if (statesPtr == IntPtr.Zero)
