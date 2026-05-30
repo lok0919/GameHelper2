@@ -161,8 +161,13 @@ namespace GameHelper.Utils
                         state1.Break();
                         if (!isPatternFound.All(k => k))
                         {
+                            var nonUnique = Patterns
+                                .Where((_, idx) => !isPatternFound[idx])
+                                .Select(p => p.Name);
                             throw new Exception(
-                                "There is a non-unique pattern. Kindly fix the patterns.");
+                                "Found as many matches as patterns, but some patterns matched " +
+                                "more than once (non-unique) while these never matched: " +
+                                string.Join(", ", nonUnique) + ". Kindly fix the patterns.");
                         }
                     }
                 });
@@ -170,7 +175,14 @@ namespace GameHelper.Utils
 
             if (totalPatternsFound < totalPatterns)
             {
-                throw new Exception("Couldn't find some patterns. kindly fix the patterns.");
+                var missingPatterns = Patterns
+                    .Where((_, i) => !isPatternFound[i])
+                    .Select(p => p.Name)
+                    .ToList();
+                throw new Exception(
+                    $"Couldn't find {missingPatterns.Count} of {totalPatterns} pattern(s). " +
+                    "These likely need to be updated for the new game version: " +
+                    string.Join(", ", missingPatterns) + ".");
             }
 
             for (var i = 0; i < totalPatterns; i++)

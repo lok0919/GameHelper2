@@ -427,6 +427,28 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
         private float[][] GetTerrainHeight()
         {
+            var totalTilesX = this.TerrainMetadata.TotalTiles.X;
+            var totalTilesY = this.TerrainMetadata.TotalTiles.Y;
+
+            // Guard against stale/incorrect terrain offsets after a game patch.
+            // If the tile dimensions are non-positive or implausibly large, the
+            // TerrainMetadata offsets are pointing at garbage; reading further would
+            // chase bad pointers (spamming memory-read errors) and ultimately throw
+            // an OverflowException at the gridSizeY allocation below. Bail out
+            // gracefully so the rest of the overlay keeps running (terrain height
+            // is simply disabled until the offsets are corrected).
+            const long MaxSaneTiles = 10000;
+            if (totalTilesX <= 0 || totalTilesY <= 0 ||
+                totalTilesX > MaxSaneTiles || totalTilesY > MaxSaneTiles)
+            {
+                Console.WriteLine(
+                    "[AreaInstance.GetTerrainHeight] Skipping terrain: implausible " +
+                    $"TotalTiles (X={totalTilesX}, Y={totalTilesY}). The TerrainMetadata " +
+                    "offsets likely need updating for this game version.");
+                this.ScanForTerrainStruct();
+                return Array.Empty<float[]>();
+            }
+
             var rotationHelper = Core.RotationSelector.Values;
             var rotatorMetrixHelper = Core.RotatorHelper.Values;
             var reader = Core.Process.Handle;
@@ -499,6 +521,81 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             });
 
             return result;
+        }
+
+        /// <summary>
+        ///     Debug helper for patch-day offset recovery. Scans the memory after the
+        ///     AreaInstance base for the recognizable TerrainStruct signature so the new
+        ///     <see cref="AreaInstanceOffsets.TerrainMetadata"/> offset can be recovered
+        ///     without an external memory editor. The signature is:
+        ///       TotalTiles    : two small positive int64 tile counts (X, Y), and
+        ///       TileDetailsPtr: a std::vector of TileStructure (0x38 bytes each)
+        ///                       immediately after, i.e. begin/end/capacity pointers
+        ///                       where (end - begin) is an exact multiple of 0x38.
+        ///     TotalTiles sits at TerrainStruct + 0x18, so the reported TerrainMetadata
+        ///     offset is (TotalTiles offset - 0x18).
+        /// </summary>
+        private void ScanForTerrainStruct()
+        {
+            const int scanSize = 0x4000; // 16 KB after the AreaInstance base.
+            const int tileStructSize = 0x38; // sizeof(TileStructure).
+            const int totalTilesInnerOffset = 0x18; // TotalTiles offset within TerrainStruct.
+            const long maxSaneTiles = 10000;
+            const long minPtr = 0x10000;
+            const long maxPtr = 0x7FFFFFFFFFFF;
+
+            var reader = Core.Process.Handle;
+            var baseAddr = this.Address.ToInt64();
+            var bytes = reader.ReadMemoryArray<byte>(this.Address, scanSize);
+            if (bytes.Length < 0x28)
+            {
+                Console.WriteLine("[TerrainScan] Could not read AreaInstance memory; scan aborted.");
+                return;
+            }
+
+            Console.WriteLine(
+                $"[TerrainScan] Scanning 0x{scanSize:X} bytes from AreaInstance base 0x{baseAddr:X} " +
+                "for the TerrainStruct (TotalTiles + TileDetails vector) signature...");
+            var candidates = 0;
+            for (var o = 0; o + 0x28 <= bytes.Length; o += 8) // 8-byte aligned.
+            {
+                var x = BitConverter.ToInt64(bytes, o);
+                var y = BitConverter.ToInt64(bytes, o + 8);
+                if (x <= 0 || y <= 0 || x > maxSaneTiles || y > maxSaneTiles)
+                {
+                    continue;
+                }
+
+                var begin = BitConverter.ToInt64(bytes, o + 0x10);
+                var end = BitConverter.ToInt64(bytes, o + 0x18);
+                var cap = BitConverter.ToInt64(bytes, o + 0x20);
+                if (begin < minPtr || begin > maxPtr || end <= begin || cap < end || end > maxPtr)
+                {
+                    continue;
+                }
+
+                var span = end - begin;
+                if (span % tileStructSize != 0)
+                {
+                    continue;
+                }
+
+                var elems = span / tileStructSize;
+                if (elems <= 0 || elems > 5_000_000)
+                {
+                    continue;
+                }
+
+                var terrainMetadataOffset = o - totalTilesInnerOffset;
+                Console.WriteLine(
+                    $"[TerrainScan]   CANDIDATE: TotalTiles@+0x{o:X} (X={x}, Y={y}); " +
+                    $"TileDetails vector elems={elems} (stride 0x{tileStructSize:X}); " +
+                    $"=> TerrainMetadata offset = 0x{terrainMetadataOffset:X} " +
+                    $"(begin=0x{begin:X}, end=0x{end:X}).");
+                candidates++;
+            }
+
+            Console.WriteLine($"[TerrainScan] Done. {candidates} candidate(s) found.");
         }
 
         private int GetSubTerrainHeight(sbyte[] subterrainheightarray, int y, int x)
