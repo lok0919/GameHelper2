@@ -75,7 +75,7 @@ namespace Radar
         {
             ImGui.TextWrapped("If your mini/large map icon are not working/visible. Open this " +
                 "setting window, click anywhere on it and then hide this setting window. It will fix the issue.");
-            ImGui.DragFloat("Large Map Fix", ref this.Settings.LargeMapScaleMultiplier, 0.001f, 0.01f, 0.3f);
+            ImGui.DragFloat("Large Map Fix", ref this.Settings.LargeMapScaleMultiplier, 0.01f, 1f, 30f, "%.4f");
             ImGuiHelper.ToolTip("This slider is for fixing large map (icons) offset. " +
                 "You have to use it if you feel that LargeMap Icons " +
                 "are moving while your player is moving. You only have " +
@@ -85,8 +85,11 @@ namespace Radar
                 "what resolution you use and what value works best for you. " +
                 "This slider has no impact on mini-map icons. For windowed-full-screen " +
                 "default value should be good enough. If you want to add precise value " +
-                "(e.g. 0.137345) press CTRL + LMB");
-            ImGui.DragFloat("Large Map Y Offset", ref this.Settings.LargeMapYOffset, 0.1f, -100f, 100f);
+                "(e.g. 13.7345) press CTRL + LMB. NOTE: this value is 100x the internally " +
+                "applied scale (e.g. 15.8 here == 0.158 effective).");
+            ImGui.DragFloat("Large Map X Offset", ref this.Settings.LargeMapXOffset, 0.1f);
+            ImGuiHelper.ToolTip("Adjusts only the large map overlay horizontally. Negative moves it left, positive moves it right.");
+            ImGui.DragFloat("Large Map Y Offset", ref this.Settings.LargeMapYOffset, 0.1f);
             ImGuiHelper.ToolTip("Adjusts only the large map overlay vertically. Negative moves it up, positive moves it down.");
             ImGui.Checkbox("Hide Radar when in Hideout/Town", ref this.Settings.DrawWhenNotInHideoutOrTown);
             ImGui.Checkbox("Hide Radar when game is in the background", ref this.Settings.DrawWhenForeground);
@@ -259,8 +262,9 @@ namespace Radar
             if (largeMap.IsVisible)
             {
                 var largeMapRealCenter = largeMap.Center + largeMap.Shift + largeMap.DefaultShift;
+                largeMapRealCenter.X += this.Settings.LargeMapXOffset;
                 largeMapRealCenter.Y += this.Settings.LargeMapYOffset;
-                var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier * largeMap.Zoom;
+                var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier / 100f * largeMap.Zoom;
                 Helper.DiagonalLength = this.largeMapDiagonalLength;
                 Helper.Scale = largeMapModifiedZoom;
                 ImGui.SetNextWindowPos(this.Settings.CullWindowPos);

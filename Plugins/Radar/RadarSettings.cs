@@ -23,8 +23,16 @@ namespace Radar
         /// <summary>
         /// Multipler to apply to the Large Map icons
         /// so they display correctly on the screen.
+        /// Stored 100x larger than the value actually used (e.g. 15.8 here == 0.158 effective)
+        /// so the UI slider can show/edit enough precision; divided by 100 at the use site.
         /// </summary>
-        public float LargeMapScaleMultiplier = 0.158f;
+        public float LargeMapScaleMultiplier = 6.43f;
+
+        /// <summary>
+        /// Horizontal screen-space offset applied to the large map overlay.
+        /// Negative values move the overlay left.
+        /// </summary>
+        public float LargeMapXOffset = -3.5f;
 
         /// <summary>
         /// Vertical screen-space offset applied to the large map overlay.
