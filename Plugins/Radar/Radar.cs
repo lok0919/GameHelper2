@@ -99,6 +99,8 @@ namespace Radar
                 "applied scale (e.g. 15.8 here == 0.158 effective).");
             ImGui.DragFloat("Large Map X Offset", ref this.Settings.LargeMapXOffset, 0.1f);
             ImGuiHelper.ToolTip("Adjusts only the large map overlay horizontally. Negative moves it left, positive moves it right.");
+            ImGui.DragFloat("Large Map Y Offset", ref this.Settings.LargeMapYOffset, 0.1f);
+            ImGuiHelper.ToolTip("Adjusts only the large map overlay vertically. Negative moves it up, positive moves it down.");
             ImGui.DragFloat("Mini Map Icon Scale", ref this.Settings.MiniMapScaleMultiplier, 0.005f, 0.01f, 2f, "%.3f");
             ImGuiHelper.ToolTip("Scales the size of icons drawn on the mini-map only. " +
                 "The mini-map draws icons much larger than the large map by default; " +
@@ -284,6 +286,7 @@ namespace Radar
             {
                 var largeMapRealCenter = largeMap.Center + largeMap.Shift + largeMap.DefaultShift;
                 largeMapRealCenter.X += this.Settings.LargeMapXOffset;
+                largeMapRealCenter.Y += this.Settings.LargeMapYOffset;
                 var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier / 100f * LegacyRadarZoomBaseline;
                 Helper.DiagonalLength = this.largeMapDiagonalLength;
                 Helper.Scale = largeMapModifiedZoom;

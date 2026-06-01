@@ -50,6 +50,12 @@ namespace Radar
         public float LargeMapXOffset = -3.5f;
 
         /// <summary>
+        /// Vertical screen-space offset applied to the large map overlay.
+        /// Negative values move the overlay up.
+        /// </summary>
+        public float LargeMapYOffset = -20.3f;
+
+        /// <summary>
         /// Do not draw the Radar plugin stuff when game is in the background.
         /// </summary>
         public bool DrawWhenForeground = true;
