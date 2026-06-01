@@ -26,7 +26,7 @@ namespace Radar
         /// Stored 100x larger than the value actually used (e.g. 15.8 here == 0.158 effective)
         /// so the UI slider can show/edit enough precision; divided by 100 at the use site.
         /// </summary>
-        public float LargeMapScaleMultiplier = 6.43f;
+        public float LargeMapScaleMultiplier = 6.44f;
 
         /// <summary>
         /// Multiplier applied to the mini-map icon size (on top of the mini-map zoom).
@@ -41,7 +41,7 @@ namespace Radar
         /// default (uses raw zoom), which spreads icons too far. Turn down to pull them in.
         /// This only affects icon positions, not icon size.
         /// </summary>
-        public float MiniMapZoomMultiplier = 0.5f;
+        public float MiniMapZoomMultiplier = 0.37f;
 
         /// <summary>
         /// Horizontal screen-space offset applied to the large map overlay.
