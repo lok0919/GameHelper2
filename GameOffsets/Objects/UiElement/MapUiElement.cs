@@ -15,9 +15,9 @@ namespace GameOffsets.Objects.UiElement
     [StructLayout(LayoutKind.Explicit, Pack = 1)]
     public struct LiveMapStateOffset
     {
-        [FieldOffset(0x618)] public StdTuple2D<float> ViewportHalfSize;
+        [FieldOffset(0x6518)] public StdTuple2D<float> ViewportHalfSize;
         [FieldOffset(0x3A8)] public float Zoom;
-        [FieldOffset(0x868)] public StdTuple2D<float> Shift;
+        [FieldOffset(0x6768)] public StdTuple2D<float> Shift;
         [FieldOffset(0x870)] public StdTuple2D<float> DefaultShift;
     }
 }

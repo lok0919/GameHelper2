@@ -13,7 +13,7 @@ namespace GameOffsets.Objects.States.InGameState
         [FieldOffset(0x730)] public IntPtr PassiveSkillTreePanel;
         [FieldOffset(0x700)] public IntPtr LargeMapParentPtr;
         [FieldOffset(0x768)] public IntPtr LargeMapCenterRootPtr;
-        [FieldOffset(0x7C8)] public IntPtr MiniMapParentPtr;
+        [FieldOffset(0x7C8)] public IntPtr MapParentPtr;
         [FieldOffset(0x7B8)] public IntPtr LargeMapVisibilityPtr;
         [FieldOffset(0xA50)] public IntPtr LargeMapCenterPtr;
         [FieldOffset(0xAA8)] public IntPtr ControllerModeMapParentPtr;
@@ -23,6 +23,13 @@ namespace GameOffsets.Objects.States.InGameState
     public struct LargeMapParentStruct
     {
         [FieldOffset(0x550)] public IntPtr LargeMapPtr;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Pack = 1)]
+    public struct MapParentStruct
+    {
+        [FieldOffset(0x28)] public IntPtr LargeMapPtr;
+        [FieldOffset(0x30)] public IntPtr MiniMapPtr;
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1)]

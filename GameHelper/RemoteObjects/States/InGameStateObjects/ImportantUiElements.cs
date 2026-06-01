@@ -99,20 +99,6 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             ImGui.Text($"Passive Skill Tree Node Parent Address: {this.passiveskilltreenodes.Address.ToInt64():X}");
             ImGui.Text($"Passive Skill Tree Node Parent Children: {this.passiveskilltreenodes.TotalChildrens}");
             ImGui.Text($"Total Skill Tree Nodes: {this.SkillTreeNodesUiElements.Count}");
-            if (this.passiveskilltreenodes.Address != IntPtr.Zero && ImGui.TreeNode("Passive Skill Tree Node Parent Children"))
-            {
-                var visibleLimit = Math.Min(this.passiveskilltreenodes.TotalChildrens, 20);
-                for (var i = 0; i < visibleLimit; i++)
-                {
-                    var child = this.passiveskilltreenodes[i];
-                    if (child != null)
-                    {
-                        ImGui.Text($"[{i}] 0x{child.Address.ToInt64():X} Visible={child.IsVisible} Children={child.TotalChildrens}");
-                    }
-                }
-
-                ImGui.TreePop();
-            }
             if (ImGui.TreeNode("Skill Tree Nodes"))
             {
                 for (var i = 0; i < this.SkillTreeNodesUiElements.Count; i++)
@@ -165,21 +151,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 var data3 = reader.ReadMemory<UiElementBaseOffset>(data1.PassiveSkillTreePanel);
                 var data4 = reader.ReadMemory<IntPtr>(data3.ChildrensPtr.First + (PassiveSkillTreeStruct.ChildNumber));
-                var miniMapVisibilityAddress = data1.MiniMapParentPtr;
+                var mapParent = reader.ReadMemory<MapParentStruct>(data1.MapParentPtr);
+                var largeMapVisibilityAddress = mapParent.LargeMapPtr;
+                var miniMapVisibilityAddress = mapParent.MiniMapPtr;
                 var miniMapAddress = miniMapVisibilityAddress;
-                var largeMapVisibilityAddress = IntPtr.Zero;
-                var miniMapRootData = reader.ReadMemory<UiElementBaseOffset>(data1.MiniMapParentPtr);
-                var miniMapRootChildren = reader.ReadStdVector<IntPtr>(miniMapRootData.ChildrensPtr);
-                if (miniMapRootChildren.Length > 0)
-                {
-                    largeMapVisibilityAddress = miniMapRootChildren[0];
-                }
 
-                if (miniMapRootChildren.Length > 1 && miniMapRootChildren[1] != IntPtr.Zero)
+                if (miniMapVisibilityAddress != IntPtr.Zero)
                 {
-                    miniMapVisibilityAddress = miniMapRootChildren[1];
-                    miniMapAddress = miniMapVisibilityAddress;
-
                     var miniMapParentData = reader.ReadMemory<UiElementBaseOffset>(miniMapVisibilityAddress);
                     var miniMapChildren = reader.ReadStdVector<IntPtr>(miniMapParentData.ChildrensPtr);
                     if (miniMapChildren.Length > 0 && miniMapChildren[0] != IntPtr.Zero)
