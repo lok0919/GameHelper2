@@ -86,6 +86,14 @@ namespace Radar
                 "This slider has no impact on mini-map icons. For windowed-full-screen " +
                 "default value should be good enough. If you want to add precise value " +
                 "(e.g. 0.137345) press CTRL + LMB");
+            ImGui.DragFloat("Large Map X Offset", ref this.Settings.LargeMapXOffset, 0.1f);
+            ImGuiHelper.ToolTip("Adjusts only the large map overlay horizontally. Negative moves it left, positive moves it right.");
+            ImGui.DragFloat("Large Map Y Offset", ref this.Settings.LargeMapYOffset, 0.1f);
+            ImGuiHelper.ToolTip("Adjusts only the large map overlay vertically. Negative moves it up, positive moves it down.");
+            ImGui.DragFloat("Mini Map X Offset", ref this.Settings.MiniMapXOffset, 0.1f);
+            ImGuiHelper.ToolTip("Adjusts only the mini-map overlay horizontally. Negative moves it left, positive moves it right.");
+            ImGui.DragFloat("Mini Map Zoom", ref this.Settings.MiniMapZoomMultiplier, 0.001f, 0.01f, 3f, "%.3f");
+            ImGuiHelper.ToolTip("Controls how far mini-map icons sit from your character (the mini-map's effective zoom).");
             ImGui.Checkbox("Hide Radar when in Hideout/Town", ref this.Settings.DrawWhenNotInHideoutOrTown);
             ImGui.Checkbox("Hide Radar when game is in the background", ref this.Settings.DrawWhenForeground);
             ImGui.Checkbox("Hide Radar when game is paused", ref this.Settings.DrawWhenNotPaused);
@@ -269,7 +277,13 @@ namespace Radar
                 }
 
                 var largeMapRealCenter = largeMap.Center + largeMap.Shift + largeMap.DefaultShift;
-                var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier * largeMap.Zoom;
+                // Calibrated X bias baked in so LargeMapXOffset defaults to 0.
+                const float LargeMapXBias = -5.7f;
+                largeMapRealCenter.X += LargeMapXBias + this.Settings.LargeMapXOffset;
+                largeMapRealCenter.Y += this.Settings.LargeMapYOffset;
+                // Scale factor calibrated so LargeMapScaleMultiplier = 1.0 produces correct placement.
+                const float LargeMapScaleBaseline = 0.188f;
+                var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier * largeMap.Zoom * LargeMapScaleBaseline;
                 Helper.DiagonalLength = this.largeMapDiagonalLength;
                 Helper.Scale = largeMapModifiedZoom;
                 ImGui.SetNextWindowPos(this.Settings.CullWindowPos);
@@ -293,11 +307,16 @@ namespace Radar
                 }
 
                 Helper.DiagonalLength = this.miniMapDiagonalLength;
-                Helper.Scale = miniMap.Zoom;
+                // Calibrated baseline baked in so MiniMapZoomMultiplier = 1.0 produces correct placement.
+                const float MiniMapZoomBaseline = 0.748f;
+                Helper.Scale = miniMap.Zoom * this.Settings.MiniMapZoomMultiplier * MiniMapZoomBaseline;
                 var miniMapCenter = miniMap.Position +
                     (miniMap.Size / 2) +
                     miniMap.DefaultShift +
                     miniMap.Shift;
+                // Calibrated X bias baked in so MiniMapXOffset defaults to 0.
+                const float MiniMapXBias = -5f;
+                miniMapCenter.X += MiniMapXBias + this.Settings.MiniMapXOffset;
                 ImGui.SetNextWindowPos(miniMap.Position);
                 ImGui.SetNextWindowSize(miniMap.Size);
                 ImGui.SetNextWindowBgAlpha(0f);
@@ -953,18 +972,21 @@ namespace Radar
 
         private void UpdateMiniMapDetails()
         {
+            // Scale the base-resolution diagonal with the window height so that
+            // the world-to-pixel ratio tracks the game's own vertical scaling.
+            // Changing only the window width does not affect the map scale.
             var map = Core.States.InGameStateObject.GameUi.MiniMap;
-            var widthSq = map.Size.X * map.Size.X;
-            var heightSq = map.Size.Y * map.Size.Y;
-            this.miniMapDiagonalLength = Math.Sqrt(widthSq + heightSq);
+            var baseRes = GameOffsets.Objects.UiElement.UiElementBaseFuncs.BaseResolution;
+            var baseDiag = Math.Sqrt((baseRes.X * baseRes.X) + (baseRes.Y * baseRes.Y));
+            this.miniMapDiagonalLength = baseDiag * map.Size.Y / baseRes.Y;
         }
 
         private void UpdateLargeMapDetails()
         {
             var map = Core.States.InGameStateObject.GameUi.LargeMap;
-            var widthSq = map.Size.X * map.Size.X;
-            var heightSq = map.Size.Y * map.Size.Y;
-            this.largeMapDiagonalLength = Math.Sqrt(widthSq + heightSq);
+            var baseRes = GameOffsets.Objects.UiElement.UiElementBaseFuncs.BaseResolution;
+            var baseDiag = Math.Sqrt((baseRes.X * baseRes.X) + (baseRes.Y * baseRes.Y));
+            this.largeMapDiagonalLength = baseDiag * map.Size.Y / baseRes.Y;
         }
 
         private void ReloadMapTexture()

@@ -24,7 +24,31 @@ namespace Radar
         /// Multipler to apply to the Large Map icons
         /// so they display correctly on the screen.
         /// </summary>
-        public float LargeMapScaleMultiplier = 0.1738f;
+        public float LargeMapScaleMultiplier = 1f;
+
+        /// <summary>
+        /// Horizontal screen-space offset applied to the large map overlay.
+        /// Negative values move the overlay left.
+        /// </summary>
+        public float LargeMapXOffset = 0f;
+
+        /// <summary>
+        /// Vertical screen-space offset applied to the large map overlay.
+        /// Negative values move the overlay up.
+        /// </summary>
+        public float LargeMapYOffset = 0f;
+
+        /// <summary>
+        /// Multiplier applied to the mini-map position zoom (Helper.Scale), controlling how
+        /// far icons are placed from the player.
+        /// </summary>
+        public float MiniMapZoomMultiplier = 1f;
+
+        /// <summary>
+        /// Horizontal screen-space offset applied to the mini-map overlay.
+        /// Negative values move the overlay left.
+        /// </summary>
+        public float MiniMapXOffset = 0f;
 
         /// <summary>
         /// Do not draw the Radar plugin stuff when game is in the background.
