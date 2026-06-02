@@ -266,7 +266,7 @@ namespace Radar
                 return;
             }
 
-            if (Core.States.InGameStateObject.GameUi.IsPassiveSkillTreeOpen)
+            if (Core.States.InGameStateObject.GameUi.IsAnyLargePanelOpen)
             {
                 return;
             }
