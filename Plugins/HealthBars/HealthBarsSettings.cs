@@ -35,7 +35,7 @@ namespace HealthBars
         /// <summary>
         ///     Interpolate entity position to minimize flicker effect.
         /// </summary>
-        public bool InterpolatePosition = true;
+        public bool InterpolatePosition = false;
 
         /// <summary>
         ///     Interpolate entity position rate to minimize flickering effect.
