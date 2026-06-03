@@ -85,6 +85,16 @@ namespace Radar
         public float IconScale => this.iconScale;
 
         /// <summary>
+        /// Gets or sets a value indicating whether to compute and draw a path to this entity type.
+        /// </summary>
+        public bool ShowPath = false;
+
+        /// <summary>
+        /// Gets or sets the color of the path line for this entity type.
+        /// </summary>
+        public Vector4 PathColor = new(0f, 1f, 1f, 1f);
+
+        /// <summary>
         /// Gets the icon sprite file pathname.
         /// </summary>
         public string FilePathName { get; private set; } = string.Empty;
@@ -117,6 +127,17 @@ namespace Radar
             ImGui.PushItemWidth(200);
             ImGui.InputFloat($"##iconscale", ref this.iconScale, 1f, 1f);
             ImGui.PopItemWidth();
+            ImGui.SameLine();
+            ImGui.Checkbox("Path", ref this.ShowPath);
+            if (this.ShowPath)
+            {
+                ImGui.SameLine();
+                ImGui.PushItemWidth(150);
+                ImGui.ColorEdit4("##pathcolor", ref this.PathColor,
+                    ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaPreview);
+                ImGui.PopItemWidth();
+            }
+
             ImGui.SameLine();
 
             var buttonSize = new Vector2(ImGui.GetFontSize());

@@ -112,14 +112,60 @@ namespace Radar
         public Vector2 CullWindowSize = Vector2.Zero;
 
         /// <summary>
-        /// Gets a value indicating wether user wants to show Player icon or names.
+        /// Gets a value indicating whether user wants to show Player icon or names.
         /// </summary>
         public bool ShowPlayersNames = false;
+
+        /// <summary>
+        /// Global toggle for drawing paths to entities with icon pathing enabled.
+        /// Does not change individual icon ShowPath settings.
+        /// </summary>
+        public bool ShowEntityPaths = true;
 
         /// <summary>
         /// Gets a value indicating what is the maximum frequency a POI should have
         /// </summary>
         public int POIFrequencyFilter = 0;
+
+        /// <summary>
+        /// Gets a value indicating whether to draw the straight-line arrow to POIs.
+        /// Green if unobstructed, red if blocked.
+        /// </summary>
+        public bool ShowStraightLine = false;
+
+        /// <summary>
+        /// Gets a value indicating whether to draw the A*-computed smooth path to POIs.
+        /// </summary>
+        public bool ShowSmoothPath = true;
+
+        /// <summary>
+        /// Thickness of the POI direction lines in screen pixels.
+        /// </summary>
+        public float DirectionLineThickness = 2.0f;
+
+        /// <summary>
+        /// Thickness of entity/terrain-tile icon paths in screen pixels.
+        /// </summary>
+        public float IconPathThickness = 2.0f;
+
+        /// <summary>
+        /// Number of segments from the start of a cached path to recompute.
+        /// 0 = full recompute. Higher values keep more of the old path,
+        /// trading accuracy for performance.
+        /// </summary>
+        public int PathRecomputeSegments = 3;
+
+        /// <summary>
+        /// Minimum interval in milliseconds between path recomputations.
+        /// Lower values give more responsive paths at higher CPU cost.
+        /// </summary>
+        public int PathRecomputeIntervalMs = 250;
+
+        /// <summary>
+        /// Interval in milliseconds between forced full-path recomputations.
+        /// Ensures paths can never drift stale from partial recomputes.
+        /// </summary>
+        public int PathFullRecomputeIntervalMs = 3000;
 
         /// <summary>
         /// Gets a value indicating wether user want to show important tgt names or not.
@@ -460,6 +506,12 @@ namespace Radar
         private void AddDefaultTempleIcons(string iconPathName)
         {
             this.TempleIcons.TryAdd("Vaal Ruins", new IconPicker(iconPathName, 9, 2, 75, IconSize));
+
+            if (this.TempleIcons.TryGetValue("Vaal Ruins", out var vr))
+            {
+                vr.ShowPath = true;
+                vr.PathColor = new System.Numerics.Vector4(1f, 0.6f, 0f, 1f); // orange
+            }
         }
 
         private void AddDefaultExpeditionMarkerIcons(string iconPathName)
@@ -478,6 +530,12 @@ namespace Radar
         {
             this.RunestoneIcons.TryAdd("Runestone Encounter", new IconPicker(iconPathName, 3, 12, 70, IconSize));
             this.RunestoneIcons.TryAdd("Runestones", new IconPicker(iconPathName, 13, 1, 70, IconSize));
+
+            if (this.RunestoneIcons.TryGetValue("Runestone Encounter", out var re))
+            {
+                re.ShowPath = true;
+                re.PathColor = new System.Numerics.Vector4(1f, 0.15f, 0.15f, 1f); // red
+            }
         }
 
         private void AddDefaultExpeditionRemnantIcons(string iconPathName)

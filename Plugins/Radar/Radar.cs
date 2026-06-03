@@ -9,6 +9,7 @@ namespace Radar
     using System.IO;
     using System.Linq;
     using System.Numerics;
+    using System.Threading;
     using System.Threading.Tasks;
     using Coroutine;
     using GameHelper;
@@ -65,6 +66,21 @@ namespace Radar
         private Vector2 walkableMapDimension = Vector2.Zero;
         private readonly Dictionary<string, Vector2> textHalfSizeCache = new(StringComparer.Ordinal);
         private readonly Dictionary<int, Vector2> poiIndexHalfSizeCache = new();
+
+        // Pathfinding: cache computed paths and throttle recomputation
+        private long nextPoiRecomputeTime = 0;
+        private long nextPoiFullRecomputeTime = 0;
+        private Dictionary<string, List<Vector2>?> poiPathCache = new();
+        private Task? pendingPathTask = null;
+
+        // Entity pathfinding: cache and throttle for entity-icon-based paths
+        private long nextEntityRecomputeTime = 0;
+        private long nextEntityFullRecomputeTime = 0;
+        private Dictionary<uint, List<Vector2>?> entityPathCache = new();
+        private Task? pendingEntityPathTask = null;
+        private readonly List<(uint entityId, Vector2 gridPos, Vector4 color)> entityPathSnapshot = new();
+        private readonly List<(string cacheKey, Vector2 gridPos, Vector4 color)> tileIconPathSnapshot = new();
+        private Dictionary<string, List<Vector2>?> tileIconPathCache = new();
 
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
 
@@ -156,6 +172,17 @@ namespace Radar
             ImGui.Checkbox("Show terrain points of interest (A.K.A Terrain POI)", ref this.Settings.ShowImportantPOI);
             ImGui.ColorEdit4("Terrain POI text color", ref this.Settings.POIColor);
             ImGui.Checkbox("Add black background to Terrain POI text", ref this.Settings.EnablePOIBackground);
+            ImGui.Checkbox("Show Straight-Line Arrow to POIs", ref this.Settings.ShowStraightLine);
+            ImGuiHelper.ToolTip("Draws a straight line+arrow to each POI. Green = clear, Red = blocked.");
+            ImGui.Checkbox("Show A* Smooth Path to POIs", ref this.Settings.ShowSmoothPath);
+            ImGuiHelper.ToolTip("Computes and draws the actual shortest walkable path (cyan).");
+            ImGui.DragFloat("POI Path Thickness", ref this.Settings.DirectionLineThickness, 0.1f, 0.1f, 10.0f, "%.1f");
+            ImGui.DragInt("Path Recompute Segments", ref this.Settings.PathRecomputeSegments, 0.1f, 0, 20);
+            ImGuiHelper.ToolTip("0 = full recompute every cycle. Set to 3-5 to only recompute the first few segments of a cached path, reusing the tail. Higher values = faster but paths may be slightly stale when the player moves.");
+            ImGui.DragInt("Path Recompute Interval (ms)", ref this.Settings.PathRecomputeIntervalMs, 1f, 5, 1000);
+            ImGuiHelper.ToolTip("How often paths are recomputed. Lower = more responsive, higher = less CPU usage.");
+            ImGui.DragInt("Full Recompute Interval (ms)", ref this.Settings.PathFullRecomputeIntervalMs, 100f, 1000, 10000);
+            ImGuiHelper.ToolTip("How often a full path recompute is forced, ignoring the segment-skip optimization. Ensures paths never get stuck stale.");
             this.isAddNewPOIHeaderOpened = ImGui.CollapsingHeader("Add or Modify Terrain POI");
             if (this.isAddNewPOIHeaderOpened)
             {
@@ -168,6 +195,9 @@ namespace Radar
             ImGui.Checkbox("Hide Entities outside the network bubble", ref this.Settings.HideOutsideNetworkBubble);
             ImGui.Checkbox("Show Player Names", ref this.Settings.ShowPlayersNames);
             ImGuiHelper.ToolTip("This button will not work while Player is in the Scourge.");
+            ImGui.Checkbox("Show Paths to Icons", ref this.Settings.ShowEntityPaths);
+            ImGuiHelper.ToolTip("Global on/off for entity-icon pathing. Does not affect individual icon path settings.");
+            ImGui.DragFloat("Icon Path Thickness", ref this.Settings.IconPathThickness, 0.1f, 0.1f, 10.0f, "%.1f");
             if (ImGui.CollapsingHeader("Icons Setting"))
             {
                 this.Settings.DrawIconsSettingToImGui(
@@ -278,6 +308,9 @@ namespace Radar
                 this.Settings.CullWindowSize.Y = Core.Process.WindowArea.Size.Height;
             }
 
+            this.CollectEntityPaths();
+            this.RebuildEntityPaths();
+
             if (largeMap.IsVisible && !Core.States.InGameStateObject.GameUi.WorldMapPanel.IsVisible)
             {
                 if (this.largeMapDiagonalLength <= 0)
@@ -303,8 +336,10 @@ namespace Radar
                 ImGui.PopStyleVar();
                 this.DrawLargeMap(largeMapRealCenter);
                 this.DrawTgtFiles(largeMapRealCenter);
+                this.DrawDirectionLines(largeMapRealCenter);
                 this.DrawTgtIcons(largeMapRealCenter, largeMapModifiedZoom * 5f);
                 this.DrawMapIcons(largeMapRealCenter, largeMapModifiedZoom * 5f);
+                this.DrawEntityPaths(largeMapRealCenter);
                 ImGui.End();
             }
 
@@ -334,6 +369,7 @@ namespace Radar
                 ImGui.PopStyleVar();
                 this.DrawTgtIcons(miniMapCenter, miniMap.Zoom);
                 this.DrawMapIcons(miniMapCenter, miniMap.Zoom);
+                this.DrawEntityPaths(miniMapCenter);
                 ImGui.End();
             }
         }
@@ -587,6 +623,191 @@ namespace Radar
                                 drawString(tile.Value, locations[i], strSize, this.Settings.EnablePOIBackground);
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        private void DrawDirectionLines(Vector2 mapCenter)
+        {
+            var showStraight = this.Settings.ShowStraightLine;
+            var showSmooth = this.Settings.ShowSmoothPath;
+            if ((!showStraight && !showSmooth) || !this.Settings.ShowImportantPOI)
+            {
+                return;
+            }
+
+            var currentAreaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (!currentAreaInstance.Player.TryGetComponent<Render>(out var playerRender))
+            {
+                return;
+            }
+
+            var walkableData = currentAreaInstance.GridWalkableData;
+            var bytesPerRow = currentAreaInstance.TerrainMetadata.BytesPerRow;
+            if (walkableData == null || walkableData.Length == 0 || bytesPerRow <= 0)
+            {
+                return;
+            }
+
+            var pPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
+            var gridHeightData = currentAreaInstance.GridHeightData;
+
+            // Build door-override map: open doors force their cells to walkable
+            var doorOverrides = LineWalker.BuildDoorOverrideMap(currentAreaInstance);
+
+            ImDrawListPtr fgDraw;
+            if (this.Settings.DrawPOIInCull)
+            {
+                fgDraw = ImGui.GetWindowDrawList();
+            }
+            else
+            {
+                fgDraw = ImGui.GetBackgroundDrawList();
+            }
+
+            var clearColor = ImGuiHelper.Color(0, 255, 0, 220);
+            var blockedColor = ImGuiHelper.Color(255, 60, 60, 220);
+            var thickness = this.Settings.DirectionLineThickness;
+            const float ArrowSize = 9f;
+
+            // Predefined palette of distinct colors for POI paths, cycled per POI
+            var poiPalette = new[]
+            {
+                ImGuiHelper.Color(0, 220, 255, 220),   // cyan
+                ImGuiHelper.Color(255, 200, 0, 220),    // gold
+                ImGuiHelper.Color(255, 105, 180, 220),  // hot pink
+                ImGuiHelper.Color(0, 255, 127, 220),    // spring green
+                ImGuiHelper.Color(255, 99, 71, 220),    // tomato
+                ImGuiHelper.Color(123, 104, 238, 220),  // medium slate blue
+                ImGuiHelper.Color(255, 165, 0, 220),    // orange
+                ImGuiHelper.Color(50, 205, 50, 220),    // lime green
+            };
+            var poiColorIndex = 0;
+
+            // --- Collect POI snapshot ---
+            var poiSnapshot = new List<(string cacheKey, Vector2 gridPos)>();
+
+            void CollectFrom(Dictionary<string, string> tileDict, string prefix)
+            {
+                foreach (var tile in tileDict)
+                {
+                    if (currentAreaInstance.TgtTilesLocations.TryGetValue(tile.Key, out var locations))
+                    {
+                        for (var i = 0; i < locations.Count; i++)
+                        {
+                            poiSnapshot.Add(($"{prefix}|{tile.Key}|{i}", locations[i]));
+                        }
+                    }
+                }
+            }
+
+            if (this.Settings.ImportantTgts.TryGetValue(this.currentAreaName, out var importantTgtsOfCurrentArea))
+            {
+                CollectFrom(importantTgtsOfCurrentArea, "area");
+            }
+
+            if (this.Settings.ImportantTgts.TryGetValue("common", out var importantTgtsOfAllAreas))
+            {
+                CollectFrom(importantTgtsOfAllAreas, "common");
+            }
+
+            if (poiSnapshot.Count == 0)
+            {
+                return;
+            }
+
+            // --- Throttled background pathfinding ---
+            var now = Environment.TickCount64;
+            var forceFull = now >= this.nextPoiFullRecomputeTime;
+            var shouldRecompute = now >= this.nextPoiRecomputeTime;
+            if (forceFull)
+            {
+                this.nextPoiFullRecomputeTime = now + this.Settings.PathFullRecomputeIntervalMs;
+                shouldRecompute = true;
+            }
+            if (shouldRecompute)
+            {
+                this.nextPoiRecomputeTime = now + this.Settings.PathRecomputeIntervalMs;
+
+                // Only launch if no previous task is still running
+                if (this.pendingPathTask == null || this.pendingPathTask.IsCompleted)
+                {
+                    var snap = poiSnapshot;
+                    var wd = walkableData;
+                    var bpr = bytesPerRow;
+                    var pp = pPos;
+                    var doors = doorOverrides;
+                    var segs = forceFull ? 0 : this.Settings.PathRecomputeSegments;
+                    var oldCache = this.poiPathCache;
+                    this.pendingPathTask = Task.Run(() =>
+                    {
+                        var newCache = new Dictionary<string, List<Vector2>?>();
+                        foreach (var (key, pos) in snap)
+                        {
+                            oldCache.TryGetValue(key, out var prev);
+                            newCache[key] = ComputePath(wd, bpr, pp, pos, doors, prev, segs);
+                        }
+
+                        // Atomically swap the cache — render thread sees old or new, never torn
+                        Interlocked.Exchange(ref this.poiPathCache, newCache);
+                    });
+                }
+            }
+
+            // --- Draw each POI from cache ---
+            foreach (var (cacheKey, gridPos) in poiSnapshot)
+            {
+                var paletteColor = poiPalette[poiColorIndex % poiPalette.Length];
+                poiColorIndex++;
+                // Get terrain height at the POI location
+                float poiHeight = 0;
+                if (gridPos.X < gridHeightData[0].Length &&
+                    gridPos.Y < gridHeightData.Length)
+                {
+                    poiHeight = gridHeightData[(int)gridPos.Y][(int)gridPos.X];
+                }
+
+                var poiFpos = Helper.DeltaInWorldToMapDelta(
+                    gridPos - pPos, -playerRender.TerrainHeight + poiHeight);
+                var poiScreen = mapCenter + poiFpos;
+                var playerScreen = mapCenter;
+
+                // --- Straight-line arrow ---
+                if (showStraight)
+                {
+                    var lineResult = LineWalker.CheckLine(walkableData, bytesPerRow, pPos, gridPos, doorOverrides);
+                    var color = lineResult.IsClear ? clearColor : blockedColor;
+
+                    fgDraw.AddLine(playerScreen, poiScreen, color, thickness);
+
+                    var dir = poiScreen - playerScreen;
+                    var len = dir.Length();
+                    if (len > 0.5f)
+                    {
+                        dir /= len;
+                        var perp = new Vector2(-dir.Y, dir.X);
+                        var tip = poiScreen;
+                        var baseCenter = tip - (dir * ArrowSize);
+                        var leftWing = baseCenter + (perp * (ArrowSize * 0.45f));
+                        var rightWing = baseCenter - (perp * (ArrowSize * 0.45f));
+                        fgDraw.AddTriangleFilled(leftWing, rightWing, tip, color);
+                    }
+                }
+
+                // --- A* smooth path from cache ---
+                if (showSmooth &&
+                    this.poiPathCache.TryGetValue(cacheKey, out var cachedPath) &&
+                    cachedPath != null && cachedPath.Count > 1)
+                {
+                    var prevScreen = mapCenter;
+                    for (var pi = 1; pi < cachedPath.Count; pi++)
+                    {
+                        var pt = cachedPath[pi];
+                        var ptFpos = Helper.DeltaInWorldToMapDelta(pt - pPos, 0f);
+                        var ptScreen = mapCenter + ptFpos;
+                        fgDraw.AddLine(prevScreen, ptScreen, paletteColor, thickness + 1f);
+                        prevScreen = ptScreen;
                     }
                 }
             }
@@ -935,6 +1156,476 @@ namespace Radar
             }
         }
 
+        /// <summary>
+        /// Collects entities whose icon has ShowPath enabled.
+        /// Mirrors the icon-selection logic from DrawMapIcons but only gathers
+        /// entities that need paths, without drawing anything.
+        /// </summary>
+        private void CollectEntityPaths()
+        {
+            this.entityPathSnapshot.Clear();
+            this.tileIconPathSnapshot.Clear();
+
+            if (!this.Settings.ShowEntityPaths)
+            {
+                return;
+            }
+
+            var currentAreaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (!currentAreaInstance.Player.TryGetComponent<Render>(out var playerRender))
+            {
+                return;
+            }
+
+            var pPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
+            var baseIcons = this.Settings.BaseIcons;
+
+            // Helper: if icon exists and has ShowPath, add to snapshot
+            void TryAdd(uint entityId, Vector2 ePos, IconPicker icon)
+            {
+                if (icon != null && icon.ShowPath && icon.IconScale > 0)
+                {
+                    this.entityPathSnapshot.Add((entityId, ePos, icon.PathColor));
+                }
+            }
+
+            foreach (var entity in currentAreaInstance.AwakeEntities)
+            {
+                var ev = entity.Value;
+                if (this.Settings.HideOutsideNetworkBubble && !ev.IsValid)
+                {
+                    continue;
+                }
+
+                if (ev.EntityState == EntityStates.Useless)
+                {
+                    continue;
+                }
+
+                if (!ev.TryGetComponent<Render>(out var er))
+                {
+                    continue;
+                }
+
+                var ePos = new Vector2(er.GridPosition.X, er.GridPosition.Y);
+                var eId = entity.Key.id;
+
+                switch (ev.EntityType)
+                {
+                    case EntityTypes.NPC:
+                        TryAdd(eId, ePos,
+                            ev.EntitySubtype == EntitySubtypes.SpecialNPC
+                                ? baseIcons["Special NPC"]
+                                : baseIcons["NPC"]);
+                        break;
+
+                    case EntityTypes.Player:
+                        if (ev.EntitySubtype == EntitySubtypes.PlayerOther)
+                        {
+                            TryAdd(eId, ePos,
+                                ev.EntityState == EntityStates.PlayerLeader
+                                    ? baseIcons["Leader"]
+                                    : baseIcons["Player"]);
+                        }
+
+                        break;
+
+                    case EntityTypes.Chest:
+                        IconPicker? chestIcon = ev.EntitySubtype switch
+                        {
+                            EntitySubtypes.ChestWithRareRarity => baseIcons["Rare Chests"],
+                            EntitySubtypes.ChestWithMagicRarity => baseIcons["Magic Chests"],
+                            EntitySubtypes.BreachChest => this.Settings.BreachIcons["Breach Chest"],
+                            EntitySubtypes.Strongbox => baseIcons["Strongbox"],
+                            EntitySubtypes.ExpeditionChest => ev.Path.Contains("LeagueFaction") &&
+                                this.Settings.ExpeditionMarkerIcons.TryGetValue("Logbook", out var lb) && lb.IconScale > 0
+                                    ? lb
+                                    : this.Settings.ExpeditionIcons["Generic Expedition Chests"],
+                            _ => baseIcons["All Other Chest"],
+                        };
+                        TryAdd(eId, ePos, chestIcon);
+                        break;
+
+                    case EntityTypes.Shrine:
+                        if ((ev.TryGetComponent<Shrine>(out var sc) && sc.IsUsed) ||
+                            (ev.TryGetComponent<Targetable>(out var t) && !t.IsTargetable))
+                        {
+                            break;
+                        }
+
+                        TryAdd(eId, ePos, baseIcons["Shrine"]);
+                        break;
+
+                    case EntityTypes.Monster:
+                        switch (ev.EntityState)
+                        {
+                            case EntityStates.None:
+                                if (ev.EntitySubtype == EntitySubtypes.POIMonster)
+                                {
+                                    if (!this.Settings.POIMonsters.TryGetValue(ev.EntityCustomGroup, out var poiIcon))
+                                    {
+                                        poiIcon = this.Settings.POIMonsters[-1];
+                                    }
+
+                                    TryAdd(eId, ePos, poiIcon);
+                                }
+                                else if (ev.TryGetComponent<ObjectMagicProperties>(out var omp))
+                                {
+                                    TryAdd(eId, ePos, this.RarityToIconMapping(
+                                        omp.Rarity,
+                                        baseIcons["Normal Monster"],
+                                        baseIcons["Magic Monster"],
+                                        baseIcons["Rare Monster"],
+                                        baseIcons["Unique Monster"]));
+                                }
+
+                                break;
+
+                            case EntityStates.PinnacleBossHidden:
+                                TryAdd(eId, ePos, baseIcons["Pinnacle Boss Not Attackable"]);
+                                break;
+
+                            case EntityStates.MonsterFriendly:
+                                TryAdd(eId, ePos, baseIcons["Friendly"]);
+                                break;
+                        }
+
+                        break;
+
+                    case EntityTypes.DeliriumBomb:
+                        TryAdd(eId, ePos, this.Settings.DeliriumIcons["Delirium Bomb"]);
+                        break;
+
+                    case EntityTypes.DeliriumSpawner:
+                        TryAdd(eId, ePos, this.Settings.DeliriumIcons["Delirium Spawner"]);
+                        break;
+
+                    case EntityTypes.OtherImportantObjects:
+                        if (ev.EntityCustomGroup == RadarSettings.ExpeditionMarkerGroup)
+                        {
+                            if (ev.TryGetComponent<MinimapIcon>(out var mmIcon) &&
+                                !string.IsNullOrEmpty(mmIcon.IconName) &&
+                                RadarSettings.ExpeditionMarkerIconNameMap.TryGetValue(
+                                    mmIcon.IconName, out var displayName) &&
+                                this.Settings.ExpeditionMarkerIcons.TryGetValue(
+                                    displayName, out var expIcon) &&
+                                expIcon.IconScale > 0)
+                            {
+                                TryAdd(eId, ePos, expIcon);
+                            }
+                        }
+                        else if (ev.EntityCustomGroup == RadarSettings.ExpeditionRemnantGroup)
+                        {
+                            if (ev.TryGetComponent<ObjectMagicProperties>(out var remnantOmp))
+                            {
+                                foreach (var modName in remnantOmp.ModNames)
+                                {
+                                    foreach (var (modSubstring, remnantDisplayName) in
+                                        RadarSettings.ExpeditionRemnantModMap)
+                                    {
+                                        if (modName.Contains(modSubstring) &&
+                                            this.Settings.ExpeditionRemnantIcons.TryGetValue(
+                                                remnantDisplayName, out var remnantIcon) &&
+                                            remnantIcon.IconScale > 0)
+                                        {
+                                            TryAdd(eId, ePos, remnantIcon);
+                                            goto doneRemnantCollect;
+                                        }
+                                    }
+                                }
+
+                                doneRemnantCollect:;
+                            }
+                        }
+                        else if (ev.EntityCustomGroup == RadarSettings.RuneEncounterGroup)
+                        {
+                            if (ev.TryGetComponent<MinimapIcon>(out var runeMmIcon) &&
+                                !string.IsNullOrEmpty(runeMmIcon.IconName) &&
+                                RadarSettings.RunestoneIconNameMap.TryGetValue(
+                                    runeMmIcon.IconName, out var runeDisplayName) &&
+                                this.Settings.RunestoneIcons.TryGetValue(
+                                    runeDisplayName, out var runeIcon) &&
+                                runeIcon.IconScale > 0)
+                            {
+                                TryAdd(eId, ePos, runeIcon);
+                            }
+                            else if (this.Settings.RunestoneIcons.TryGetValue(
+                                         "Runestone Encounter", out runeIcon) &&
+                                     runeIcon.IconScale > 0)
+                            {
+                                TryAdd(eId, ePos, runeIcon);
+                            }
+                        }
+                        else
+                        {
+                            if (!this.Settings.OtherImportantObjects.TryGetValue(
+                                    ev.EntityCustomGroup, out var mopoiIcon))
+                            {
+                                mopoiIcon = this.Settings.OtherImportantObjects[-1];
+                            }
+
+                            TryAdd(eId, ePos, mopoiIcon);
+                        }
+
+                        break;
+
+                    // Renderable entities have no icon — skip
+                }
+            }
+
+            // --- Terrain-tile icon paths (Temple, Runestone, Boss Arena, Stairs) ---
+            var tgtLocations = currentAreaInstance.TgtTilesLocations;
+            foreach (var tgtKV in tgtLocations)
+            {
+                IconPicker? tileIcon = null;
+
+                if (tgtKV.Key.StartsWith(TempleTgtPrefix) && tgtKV.Key.EndsWith(":1-y:1"))
+                {
+                    this.Settings.TempleIcons.TryGetValue("Vaal Ruins", out tileIcon);
+                }
+                else if (tgtKV.Key.StartsWith(RunestoneTgtPrefix) && tgtKV.Key.EndsWith(":1-y:1"))
+                {
+                    this.Settings.RunestoneIcons.TryGetValue("Runestones", out tileIcon);
+                }
+                else if (this.Settings.BossArenaTgts.ContainsKey(tgtKV.Key))
+                {
+                    this.Settings.BossIcons.TryGetValue("Boss Arena", out tileIcon);
+                }
+                else if (this.Settings.StairsTgts.ContainsKey(tgtKV.Key))
+                {
+                    this.Settings.BaseIcons.TryGetValue("Stairs", out tileIcon);
+                }
+
+                if (tileIcon != null && tileIcon.ShowPath && tileIcon.IconScale > 0)
+                {
+                    for (var i = 0; i < tgtKV.Value.Count; i++)
+                    {
+                        this.tileIconPathSnapshot.Add((
+                            $"tile|{tgtKV.Key}|{i}",
+                            tgtKV.Value[i],
+                            tileIcon.PathColor));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds entity paths on a background thread (throttled).
+        /// </summary>
+        private void RebuildEntityPaths()
+        {
+            if (!this.Settings.ShowEntityPaths)
+            {
+                return;
+            }
+
+            var now = Environment.TickCount64;
+            var forceFull = now >= this.nextEntityFullRecomputeTime;
+            if (now < this.nextEntityRecomputeTime && !forceFull)
+            {
+                return;
+            }
+
+            if (forceFull)
+            {
+                this.nextEntityFullRecomputeTime = now + this.Settings.PathFullRecomputeIntervalMs;
+            }
+
+            this.nextEntityRecomputeTime = now + this.Settings.PathRecomputeIntervalMs;
+
+            if (this.entityPathSnapshot.Count == 0)
+            {
+                return;
+            }
+
+            if (this.pendingEntityPathTask != null && !this.pendingEntityPathTask.IsCompleted)
+            {
+                return;
+            }
+
+            var currentAreaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (!currentAreaInstance.Player.TryGetComponent<Render>(out var playerRender))
+            {
+                return;
+            }
+
+            var walkableData = currentAreaInstance.GridWalkableData;
+            var bytesPerRow = currentAreaInstance.TerrainMetadata.BytesPerRow;
+            if (walkableData == null || walkableData.Length == 0 || bytesPerRow <= 0)
+            {
+                return;
+            }
+
+            var pPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
+            var doorOverrides = LineWalker.BuildDoorOverrideMap(currentAreaInstance);
+
+            var snap = this.entityPathSnapshot.ToArray();
+            var tileSnap = this.tileIconPathSnapshot.ToArray();
+            var segs = forceFull ? 0 : this.Settings.PathRecomputeSegments;
+            var oldEntityCache = this.entityPathCache;
+            var oldTileCache = this.tileIconPathCache;
+            var wd = walkableData;
+            var bpr = bytesPerRow;
+            var pp = pPos;
+            var doors = doorOverrides;
+
+            this.pendingEntityPathTask = Task.Run(() =>
+            {
+                var newCache = new Dictionary<uint, List<Vector2>?>();
+                foreach (var (id, pos, _) in snap)
+                {
+                    oldEntityCache.TryGetValue(id, out var prev);
+                    newCache[id] = ComputePath(wd, bpr, pp, pos, doors, prev, segs);
+                }
+
+                var newTileCache = new Dictionary<string, List<Vector2>?>();
+                foreach (var (key, pos, _) in tileSnap)
+                {
+                    oldTileCache.TryGetValue(key, out var prev);
+                    newTileCache[key] = ComputePath(wd, bpr, pp, pos, doors, prev, segs);
+                }
+
+                Interlocked.Exchange(ref this.entityPathCache, newCache);
+                Interlocked.Exchange(ref this.tileIconPathCache, newTileCache);
+            });
+        }
+
+        /// <summary>
+        /// Draws cached entity paths. Must be called after CollectEntityPaths.
+        /// </summary>
+        private void DrawEntityPaths(Vector2 mapCenter)
+        {
+            if (!this.Settings.ShowEntityPaths ||
+                (this.entityPathSnapshot.Count == 0 && this.tileIconPathSnapshot.Count == 0))
+            {
+                return;
+            }
+
+            var currentAreaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (!currentAreaInstance.Player.TryGetComponent<Render>(out var playerRender))
+            {
+                return;
+            }
+
+            var pPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
+
+            ImDrawListPtr fgDraw;
+            if (this.Settings.DrawPOIInCull)
+            {
+                fgDraw = ImGui.GetWindowDrawList();
+            }
+            else
+            {
+                fgDraw = ImGui.GetBackgroundDrawList();
+            }
+
+            var thickness = this.Settings.IconPathThickness;
+
+            foreach (var (entityId, _, color) in this.entityPathSnapshot)
+            {
+                if (!this.entityPathCache.TryGetValue(entityId, out var cachedPath) ||
+                    cachedPath == null || cachedPath.Count <= 1)
+                {
+                    continue;
+                }
+
+                var pathColor = ImGuiHelper.Color(
+                    (uint)(color.X * 255),
+                    (uint)(color.Y * 255),
+                    (uint)(color.Z * 255),
+                    (uint)(color.W * 255));
+
+                var prevScreen = mapCenter;
+                for (var pi = 1; pi < cachedPath.Count; pi++)
+                {
+                    var pt = cachedPath[pi];
+                    var ptFpos = Helper.DeltaInWorldToMapDelta(pt - pPos, 0f);
+                    var ptScreen = mapCenter + ptFpos;
+                    fgDraw.AddLine(prevScreen, ptScreen, pathColor, thickness + 1f);
+                    prevScreen = ptScreen;
+                }
+            }
+
+            // --- Terrain-tile icon paths ---
+            foreach (var (cacheKey, _, color) in this.tileIconPathSnapshot)
+            {
+                if (!this.tileIconPathCache.TryGetValue(cacheKey, out var cachedPath) ||
+                    cachedPath == null || cachedPath.Count <= 1)
+                {
+                    continue;
+                }
+
+                var pathColor = ImGuiHelper.Color(
+                    (uint)(color.X * 255),
+                    (uint)(color.Y * 255),
+                    (uint)(color.Z * 255),
+                    (uint)(color.W * 255));
+
+                var prevScreen = mapCenter;
+                for (var pi = 1; pi < cachedPath.Count; pi++)
+                {
+                    var pt = cachedPath[pi];
+                    var ptFpos = Helper.DeltaInWorldToMapDelta(pt - pPos, 0f);
+                    var ptScreen = mapCenter + ptFpos;
+                    fgDraw.AddLine(prevScreen, ptScreen, pathColor, thickness + 1f);
+                    prevScreen = ptScreen;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Smart path computation with optional partial recompute.
+        /// If segments > 0 and a previous path exists, only recomputes the first
+        /// N segments and splices the tail of the old path.
+        /// </summary>
+        private static List<Vector2>? ComputePath(
+            byte[] walkableData,
+            int bytesPerRow,
+            Vector2 playerPos,
+            Vector2 targetPos,
+            HashSet<(int, int)>? doorOverrides,
+            List<Vector2>? previousPath,
+            int segments)
+        {
+            // Full recompute if segments is 0, no previous path, or path is too short
+            if (segments <= 0 || previousPath == null || previousPath.Count <= segments + 1)
+            {
+                var lineResult = LineWalker.CheckLine(walkableData, bytesPerRow, playerPos, targetPos, doorOverrides);
+                if (lineResult.IsClear)
+                {
+                    return new List<Vector2> { playerPos, targetPos };
+                }
+
+                return Pathfinder.FindPath(walkableData, bytesPerRow, playerPos, targetPos, doorOverrides);
+            }
+
+            // Partial recompute: path from player to old path point N, then splice
+            var splicePoint = previousPath[segments];
+            var partialPath = Pathfinder.FindPath(walkableData, bytesPerRow, playerPos, splicePoint, doorOverrides);
+
+            if (partialPath == null || partialPath.Count == 0)
+            {
+                // Partial path failed — fall back to full recompute
+                var lineResult = LineWalker.CheckLine(walkableData, bytesPerRow, playerPos, targetPos, doorOverrides);
+                if (lineResult.IsClear)
+                {
+                    return new List<Vector2> { playerPos, targetPos };
+                }
+
+                return Pathfinder.FindPath(walkableData, bytesPerRow, playerPos, targetPos, doorOverrides);
+            }
+
+            // Splice: partial path + tail of old path (skip the splice point to avoid duplicate)
+            var result = new List<Vector2>(partialPath.Count + previousPath.Count - segments);
+            result.AddRange(partialPath);
+            for (var i = segments + 1; i < previousPath.Count; i++)
+            {
+                result.Add(previousPath[i]);
+            }
+
+            return result;
+        }
+
         private IEnumerator<Wait> ClearCachesAndUpdateAreaInfo()
         {
             while (true)
@@ -1264,6 +1955,17 @@ namespace Radar
             this.delveChestCache.Clear();
             this.textHalfSizeCache.Clear();
             this.poiIndexHalfSizeCache.Clear();
+            this.poiPathCache.Clear();
+            this.nextPoiRecomputeTime = 0;
+            this.nextPoiFullRecomputeTime = 0;
+            this.pendingPathTask = null;
+            this.entityPathCache.Clear();
+            this.nextEntityRecomputeTime = 0;
+            this.nextEntityFullRecomputeTime = 0;
+            this.pendingEntityPathTask = null;
+            this.entityPathSnapshot.Clear();
+            this.tileIconPathCache.Clear();
+            this.tileIconPathSnapshot.Clear();
             this.RemoveMapTexture();
             this.currentAreaName = string.Empty;
         }
