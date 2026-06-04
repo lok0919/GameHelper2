@@ -102,7 +102,7 @@ namespace GameHelper.Utils
         {
             var typeSize = Marshal.SizeOf<T>();
             var length = nativeContainer.Last.ToInt64() - nativeContainer.First.ToInt64();
-            if (length <= 0 || length % typeSize != 0 || length > 16_000_000)
+            if (length <= 0 || length % typeSize != 0 || length > 50_000_000)
             {
                 return Array.Empty<T>();
             }

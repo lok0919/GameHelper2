@@ -1741,15 +1741,35 @@ namespace Radar
             var mapWalkableData = instance.GridWalkableData;
             var bytesPerRow = instance.TerrainMetadata.BytesPerRow;
             var worldToGridHeightMultiplier = instance.WorldToGridConvertor * 2f;
-            if (bytesPerRow <= 0)
+            if (bytesPerRow <= 0 || mapWalkableData == null || mapWalkableData.Length == 0 ||
+                gridHeightData == null || gridHeightData.Length == 0)
             {
+                // Diagnostic: log terrain metadata for areas with missing data (e.g. Sekhemas)
+                var meta = instance.TerrainMetadata;
+                Console.WriteLine(
+                    $"[Radar] No terrain data for area {instance.AreaHash}. " +
+                    $"TotalTiles=({meta.TotalTiles.X},{meta.TotalTiles.Y}) " +
+                    $"BytesPerRow={meta.BytesPerRow} " +
+                    $"WalkableLen={mapWalkableData?.Length ?? -1} " +
+                    $"HeightLen={gridHeightData?.Length ?? -1} " +
+                    $"TileHeightMul={meta.TileHeightMultiplier}");
                 return;
             }
 
             var mapEdgeDetector = new MapEdgeDetector(mapWalkableData, bytesPerRow);
+            var imageWidth = bytesPerRow * 2;
+            var imageHeight = mapEdgeDetector.TotalRows;
+
+            // Guard against enormous images (e.g. procedurally generated areas)
+            if (imageWidth <= 0 || imageHeight <= 0 ||
+                (long)imageWidth * imageHeight > 200_000_000)
+            {
+                return;
+            }
+
             var configuration = Configuration.Default.Clone();
             configuration.PreferContiguousImageBuffers = true;
-            using Image<Rgba32> image = new(configuration, bytesPerRow * 2, mapEdgeDetector.TotalRows);
+            using Image<Rgba32> image = new(configuration, imageWidth, imageHeight);
             Parallel.For(0, gridHeightData.Length, y =>
             {
                 for (var x = 1; x < gridHeightData[y].Length - 1; x++)
