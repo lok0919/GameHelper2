@@ -7,9 +7,9 @@
     public struct LifeOffset
     {
         [FieldOffset(0x000)] public ComponentHeader Header;
-        [FieldOffset(0x1A8)] public VitalStruct Health;
-        [FieldOffset(0x1F8)] public VitalStruct Mana;
-        [FieldOffset(0x230)] public VitalStruct EnergyShield;
+        [FieldOffset(0x1b0)] public VitalStruct Health;
+        [FieldOffset(0x208)] public VitalStruct Mana;
+        [FieldOffset(0x248)] public VitalStruct EnergyShield;
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1)]
