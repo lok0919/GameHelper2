@@ -230,6 +230,7 @@ namespace GameHelper.Settings
             "Metadata/Monsters/Pirates/CampExplosion",
             "Metadata/Monsters/CageSkeleton/CageSkeleton",
             "Metadata/Pet",
+            "Metadata/Monsters/JellfishNettler/JellyfishNettlerFlying",
         };
 
         /// <summary>
