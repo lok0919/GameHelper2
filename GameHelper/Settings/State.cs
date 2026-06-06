@@ -131,6 +131,12 @@ namespace GameHelper.Settings
         public bool ShowGameUiExplorer = false;
 
         /// <summary>
+        ///     Gets or sets a value indicating whether
+        ///     to show Element Finder or not.
+        /// </summary>
+        public bool ShowElementFinder = false;
+
+        /// <summary>
         ///     Gets or sets a value indicating whether to show
         ///     the performance stats or not.
         /// </summary>
@@ -192,6 +198,11 @@ namespace GameHelper.Settings
         ///     Gets or sets hotKey to disable/enable all rendering.
         /// </summary>
         public VK DisableAllRenderingKey = VK.F9;
+
+        /// <summary>
+        ///     Gets or sets hotKey to trigger Element Finder search under cursor.
+        /// </summary>
+        public VK ElementFinderHotKey = VK.F10;
 
         /// <summary>
         ///     Gets or sets the important NPC Paths.

@@ -30,6 +30,7 @@ namespace GameHelper
             PerformanceStats.InitializeCoroutines();
             DataVisualization.InitializeCoroutines();
             GameUiExplorer.InitializeCoroutines();
+            ElementFinder.InitializeCoroutines();
             PerformanceProfiler.InitializeCoroutines();
             OverlayKiller.InitializeCoroutines();
             NearbyVisualization.InitializeCoroutines();

@@ -477,6 +477,7 @@ namespace GameHelper.Settings
                     "do not go below 60 (due to server ticks), no matter how good your latency is.");
                 ImGuiHelper.NonContinuousEnumComboBox("Settings Window Key", ref Core.GHSettings.MainMenuHotKey);
                 ImGuiHelper.NonContinuousEnumComboBox("Disable Rendering Key", ref Core.GHSettings.DisableAllRenderingKey);
+                ImGuiHelper.NonContinuousEnumComboBox("Element Finder Key", ref Core.GHSettings.ElementFinderHotKey);
             }
         }
 
@@ -503,6 +504,7 @@ namespace GameHelper.Settings
                 }
 
                 ImGui.Checkbox("Game UiExplorer (GE)", ref Core.GHSettings.ShowGameUiExplorer);
+                ImGui.Checkbox("Element Finder", ref Core.GHSettings.ShowElementFinder);
                 ImGui.Checkbox("Data Visualization (DV)", ref Core.GHSettings.ShowDataVisualization);
                 ImGui.Checkbox("Performance Profiler", ref Core.GHSettings.ShowPerfProfiler);
 #if DEBUG
