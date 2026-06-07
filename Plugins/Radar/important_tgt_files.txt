@@ -405,7 +405,7 @@
   },
   "P3_3": {
     "Metadata/Terrain/Interlude/Part3/P3_3/GlacialTarn_Bossroom.tdtx:0-y:0": "Boss",
-    "Metadata/Terrain/Maps/FrozenFalls/Tiles/Cove_01.tdtx:0-y:0": "Coves"
+    "Metadata/Terrain/Maps/FrozenFalls/Tiles/Cove_01.tdtx:3-y:3": "Howling Caves"
   },
   "P3_4": {
     "Metadata/Terrain/Interlude/Part3/P3_4/Cave_Bossroom.tdtx:0-y:0": "Boss"
