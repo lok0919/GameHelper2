@@ -33,6 +33,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Launcher", "Launcher\Launch
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Plugins", "Plugins", "{9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Atlas", "Plugins\Atlas\Atlas.csproj", "{70C93C6E-720A-4A97-9ABC-68B7B172F8E5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,6 +69,10 @@ Global
 		{E7010E4F-030C-44B5-8327-7595448258F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E7010E4F-030C-44B5-8327-7595448258F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E7010E4F-030C-44B5-8327-7595448258F6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70C93C6E-720A-4A97-9ABC-68B7B172F8E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70C93C6E-720A-4A97-9ABC-68B7B172F8E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70C93C6E-720A-4A97-9ABC-68B7B172F8E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70C93C6E-720A-4A97-9ABC-68B7B172F8E5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -76,6 +82,7 @@ Global
 		{8F659334-9906-4693-B1D3-8ABC188E83A5} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 		{86A443FF-7326-4B21-BC81-20813A7E307E} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 		{113DA4E9-73EB-411C-B328-6440DBB5AB1C} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
+		{70C93C6E-720A-4A97-9ABC-68B7B172F8E5} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6CB26318-014D-4959-8116-07FD055D941A}

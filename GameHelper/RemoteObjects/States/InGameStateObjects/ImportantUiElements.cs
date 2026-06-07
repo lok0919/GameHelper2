@@ -6,11 +6,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 {
     using System;
     using System.Collections.Generic;
+    using System.Runtime.InteropServices;
     using System.Threading.Tasks;
     using Coroutine;
     using CoroutineEvents;
     using GameHelper.Cache;
     using GameHelper.Utils;
+    using GameOffsets.Natives;
     using GameOffsets.Objects.States.InGameState;
     using GameOffsets.Objects.UiElement;
     using ImGuiNET;
@@ -37,9 +39,27 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly int[] Act4PanelChildPath = { 22, 0, 3 };
         private static readonly int[] InterludePanelChildPath = { 22, 0, 5 };
         private static readonly int[] AtlasPanelChildPath = { 22, 0, 6 };
+        private const int AtlasMapCacheRefreshFrames = 20;
+        private const int AtlasNodeBiomeIdOffset = 0x2CE;
+        private const int AtlasNodeStatusByteOffset = 0x2CF;
+        private const int AtlasNodeMapDataOffset = 0x2A0;
+        private const int AtlasNodeConnectionsVectorOffset = 0x5A8;
+        private const byte AtlasNodeAccessibleBit = 0x01;
+        private const byte AtlasNodeCompletedBit = 0x02;
 
         private readonly UiElementParents rootCache;
         private readonly UiElementParents passiveSkillTreeCache;
+        private readonly List<AtlasMapNode> atlasMaps = new();
+        private int atlasMapCacheFrameCounter = int.MaxValue;
+        private int cachedAtlasMapCount = -1;
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct AtlasNodeConnectionEdgeOffsets
+        {
+            public int Unknown;
+            public StdTuple2D<int> Source;
+            public StdTuple2D<int> Target;
+        }
 
         /// <summary>
         ///     Passive skill tree node Parent UI element.
@@ -144,6 +164,11 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public UiElementBase Atlas { get; }
 
         /// <summary>
+        ///     Gets the current Atlas map nodes exposed for plugins.
+        /// </summary>
+        public IReadOnlyList<AtlasMapNode> AtlasMaps => this.atlasMaps;
+
+        /// <summary>
         ///     Gets the currently-open left-side panel UiElement (character, skills, etc.).
         ///     It is only <see cref="UiElementBase.IsVisible" /> while such a panel is open;
         ///     the backing pointer is null when no left panel is open.
@@ -203,6 +228,42 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.displayParentsCache();
             base.ToImGui();
             ImGui.Text($"Passive Skill Tree Panel Visible: {this.passiveskilltreenodes.IsVisible}");
+            ImGui.Text($"Total Atlas Maps: {this.AtlasMaps.Count}");
+            if (ImGui.TreeNode("Atlas Maps"))
+            {
+                foreach (var map in this.AtlasMaps)
+                {
+                    if (ImGui.TreeNode($"{map.Index}: {map.MapId}##AtlasMap{map.Index}"))
+                    {
+                        ImGui.Text($"Address: 0x{map.Address.ToInt64():X}");
+                        ImGui.Text($"Grid Position: {map.GridPosition.X}, {map.GridPosition.Y}");
+                        ImGui.Text($"Biome: {map.BiomeId}");
+                        ImGui.Text($"State: {map.State}");
+                        ImGui.Text($"Connected Nodes: {map.ConnectedGridPositions.Count}");
+                        foreach (var connected in map.ConnectedGridPositions)
+                        {
+                            ImGui.Text($"- {connected.X}, {connected.Y}");
+                        }
+
+                        ImGui.Text($"Badge UI Children: {map.BadgeCount}");
+                        foreach (var badgeAddress in map.BadgeAddresses)
+                        {
+                            ImGui.Text($"- 0x{badgeAddress.ToInt64():X}");
+                        }
+
+                        ImGui.Text($"Badge Names: {map.ContentNames.Count}");
+                        foreach (var badge in map.ContentNames)
+                        {
+                            ImGui.Text($"- {badge}");
+                        }
+
+                        ImGui.TreePop();
+                    }
+                }
+
+                ImGui.TreePop();
+            }
+
             ImGui.Text($"Total Skill Tree Nodes: {this.SkillTreeNodesUiElements.Count}");
             if (ImGui.TreeNode("Skill Tree Nodes"))
             {
@@ -234,6 +295,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.LeftPanel.Address = IntPtr.Zero;
             this.RightPanel.Address = IntPtr.Zero;
             this.ChatParent.Address = IntPtr.Zero;
+            this.atlasMaps.Clear();
+            this.atlasMapCacheFrameCounter = int.MaxValue;
+            this.cachedAtlasMapCount = -1;
             this.SkillTreeNodesUiElements.Clear();
         }
 
@@ -278,6 +342,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                       reader.ReadMemory<IntPtr>(parentOff.ChildrensPtr.First);
                 }
             }
+
+            this.UpdateAtlasMapData();
         }
 
         private void UpdateWorldMapPanelAddresses()
@@ -289,6 +355,188 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Act4.Address = ResolveChildAddress(this.Address, Act4PanelChildPath);
             this.Interlude.Address = ResolveChildAddress(this.Address, InterludePanelChildPath);
             this.Atlas.Address = ResolveChildAddress(this.Address, AtlasPanelChildPath);
+        }
+
+        private void UpdateAtlasMapData()
+        {
+            if (this.Atlas.Address == IntPtr.Zero || !this.Atlas.IsVisible)
+            {
+                this.atlasMaps.Clear();
+                this.cachedAtlasMapCount = -1;
+                this.atlasMapCacheFrameCounter = int.MaxValue;
+                return;
+            }
+
+            var atlasCount = this.Atlas.TotalChildrens;
+            if (atlasCount <= 0 || atlasCount > 10000)
+            {
+                this.atlasMaps.Clear();
+                this.cachedAtlasMapCount = -1;
+                this.atlasMapCacheFrameCounter = int.MaxValue;
+                return;
+            }
+
+            if (++this.atlasMapCacheFrameCounter < AtlasMapCacheRefreshFrames &&
+                this.cachedAtlasMapCount == atlasCount &&
+                this.atlasMaps.Count > 0)
+            {
+                return;
+            }
+
+            var connections = ReadAtlasConnections(this.Atlas.Address);
+            var maps = new List<AtlasMapNode>(atlasCount);
+            for (var i = 0; i < atlasCount; i++)
+            {
+                var nodeUi = this.Atlas[i];
+                if (nodeUi == null || nodeUi.Address == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                var map = ReadAtlasMapNode(i, nodeUi, connections);
+                if (map != null)
+                {
+                    maps.Add(map);
+                }
+            }
+
+            this.atlasMaps.Clear();
+            this.atlasMaps.AddRange(maps);
+            this.cachedAtlasMapCount = atlasCount;
+            this.atlasMapCacheFrameCounter = 0;
+        }
+
+        private static AtlasMapNode? ReadAtlasMapNode(
+            int index,
+            UiElementBase nodeUi,
+            Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> connections)
+        {
+            var nodeAddr = nodeUi.Address;
+            if (nodeAddr == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var reader = Core.Process.Handle;
+            var nodeDataStorage = reader.ReadMemory<IntPtr>(nodeAddr + 0x10);
+            if (nodeDataStorage == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var nodeData = reader.ReadMemory<IntPtr>(nodeDataStorage + 0x20);
+            if (nodeData == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var gridPosition = reader.ReadMemory<StdTuple2D<int>>(nodeAddr + 0x320);
+            var biomeId = reader.ReadMemory<byte>(nodeData + AtlasNodeBiomeIdOffset);
+            var status = reader.ReadMemory<byte>(nodeData + AtlasNodeStatusByteOffset);
+            var state = (status & AtlasNodeCompletedBit) != 0
+                ? AtlasMapNodeState.CompletedBase
+                : (status & AtlasNodeAccessibleBit) != 0
+                    ? AtlasMapNodeState.AccessibleNow
+                    : AtlasMapNodeState.None;
+
+            var mapId = string.Empty;
+            var mapDataWrapper = reader.ReadMemory<IntPtr>(nodeData + AtlasNodeMapDataOffset);
+            if (mapDataWrapper != IntPtr.Zero)
+            {
+                var stringHeader = reader.ReadMemory<IntPtr>(mapDataWrapper);
+                if (stringHeader != IntPtr.Zero)
+                {
+                    var stringBuffer = reader.ReadMemory<IntPtr>(stringHeader);
+                    if (stringBuffer != IntPtr.Zero)
+                    {
+                        mapId = reader.ReadUnicodeString(stringBuffer);
+                    }
+                }
+            }
+
+            return new AtlasMapNode(
+                index,
+                nodeAddr,
+                mapId,
+                gridPosition,
+                biomeId,
+                state,
+                Array.Empty<string>(),
+                ReadAtlasBadgeAddresses(nodeUi),
+                connections.TryGetValue(gridPosition, out var connected) ? connected : []);
+        }
+
+        private static Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> ReadAtlasConnections(IntPtr atlasAddress)
+        {
+            var result = new Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>>();
+            if (atlasAddress == IntPtr.Zero)
+            {
+                return result;
+            }
+
+            var reader = Core.Process.Handle;
+            var connectionVector = reader.ReadMemory<StdVector>(atlasAddress + AtlasNodeConnectionsVectorOffset);
+            var connections = reader.ReadStdVector<AtlasNodeConnectionEdgeOffsets>(connectionVector);
+            foreach (var connection in connections)
+            {
+                AddAtlasConnection(result, connection.Source, connection.Target);
+            }
+
+            return result;
+        }
+
+        private static void AddAtlasConnection(
+            Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> connections,
+            StdTuple2D<int> source,
+            StdTuple2D<int> target)
+        {
+            if (target.Equals(default(StdTuple2D<int>)) || target.Equals(source))
+            {
+                return;
+            }
+
+            if (!connections.TryGetValue(source, out var sourceConnections))
+            {
+                sourceConnections = new List<StdTuple2D<int>>(4);
+                connections[source] = sourceConnections;
+            }
+
+            if (!sourceConnections.Contains(target))
+            {
+                sourceConnections.Add(target);
+            }
+
+            if (!connections.TryGetValue(target, out var targetConnections))
+            {
+                targetConnections = new List<StdTuple2D<int>>(4);
+                connections[target] = targetConnections;
+            }
+
+            if (!targetConnections.Contains(source))
+            {
+                targetConnections.Add(source);
+            }
+        }
+
+        private static List<IntPtr> ReadAtlasBadgeAddresses(UiElementBase nodeUi)
+        {
+            var result = new List<IntPtr>();
+            var contentContainer = nodeUi[0]?[0];
+            if (contentContainer == null)
+            {
+                return result;
+            }
+
+            for (var i = 0; i < contentContainer.TotalChildrens; i++)
+            {
+                var childAddr = contentContainer[i]?.Address ?? IntPtr.Zero;
+                if (childAddr != IntPtr.Zero)
+                {
+                    result.Add(childAddr);
+                }
+            }
+
+            return result;
         }
 
         private static IntPtr ResolveChildAddress(IntPtr rootAddress, int[] childPath)
