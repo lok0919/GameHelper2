@@ -388,7 +388,7 @@
     "Metadata/Terrain/Interlude/Part2/Gates/AreaTransitions/GatesEnd_01.tdtx:6-y:6": "Gates end"
   },
   "P2_6": {
-    "Metadata/Terrain/Maps/SevenWaters/Tiles/Feature/Arena_Transition_01.tdtx:0-y:0": "Entrance",
+    "Metadata/Terrain/Maps/SevenWaters/Tiles/Feature/Arena_Transition_01.tdtx:10-y:6": "Entrance",
     "Metadata/Terrain/Maps/SevenWaters/Tiles/BuildingWall/BuildingWall_X_01.tdtx:0-y:0": "Pillars - Buff choice"
   },
   "P2_7": {
