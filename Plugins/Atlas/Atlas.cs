@@ -542,7 +542,7 @@
                     Address = map.Address,
                     GridPosition = map.GridPosition,
                     ConnectedGridPositions = map.ConnectedGridPositions.ToList(),
-                    MapName = NormalizeName(map.MapId),
+                    MapName = NormalizeName(map.DisplayName),
                     BiomeId = map.BiomeId,
                     State = ToAtlasNodeState(map.State),
                     BadgeCount = map.BadgeCount,

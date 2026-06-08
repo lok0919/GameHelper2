@@ -7,6 +7,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
     using System;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
+    using GameHelper.Utils;
     using GameOffsets.Natives;
 
     /// <summary>
@@ -55,6 +56,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         ///     Gets the internal map id/name read from the Atlas node metadata.
         /// </summary>
         public string Name => this.MapId;
+
+        /// <summary>
+        ///     Gets the human-readable in-game name resolved from <see cref="MapId" />,
+        ///     falling back to the raw id when no mapping is known.
+        /// </summary>
+        public string DisplayName => WorldAreaNames.GetDisplayName(this.MapId);
 
         /// <summary>
         ///     Gets the node's Atlas grid position.

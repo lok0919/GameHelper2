@@ -233,8 +233,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             {
                 foreach (var map in this.AtlasMaps)
                 {
-                    if (ImGui.TreeNode($"{map.Index}: {map.MapId}##AtlasMap{map.Index}"))
+                    if (ImGui.TreeNode($"{map.Index}: {map.DisplayName}##AtlasMap{map.Index}"))
                     {
+                        ImGui.Text($"Internal Id: {map.MapId}");
                         ImGui.Text($"Address: 0x{map.Address.ToInt64():X}");
                         ImGui.Text($"Grid Position: {map.GridPosition.X}, {map.GridPosition.Y}");
                         ImGui.Text($"Biome: {map.BiomeId}");

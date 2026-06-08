@@ -39,6 +39,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Data\WorldAreaNames.tsv" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GameOffsets\GameOffsets.csproj" />
   </ItemGroup>
 
