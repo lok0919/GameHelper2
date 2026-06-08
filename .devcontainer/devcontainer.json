@@ -1,0 +1,24 @@
+{
+  "name": "C# .NET Windows Build (Podman/Arch)",
+  "image": "mcr.microsoft.com/dotnet/sdk:10.0",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,Z",
+  "workspaceFolder": "/workspace",
+  "runArgs": [
+    "--userns=keep-id",
+    "--security-opt",
+    "label=disable"
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "omnisharp.useModernNet": true,
+        "dotnet.defaultSolution": "GameOverlay.sln"
+      },
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime"
+      ]
+    }
+  },
+  "postCreateCommand": "dotnet restore"
+}
