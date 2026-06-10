@@ -36,8 +36,8 @@ namespace Atlas
         public bool HideNotAccessibleMaps = false;
         public bool ShowAtlasGraph = false;
         public Vector4 AtlasGraphLineColor = new(1f, 1f, 1f, 0.35f);
-        public float AtlasGraphOffsetX = 0f;
-        public float AtlasGraphOffsetY = 0f;
+        public float AtlasGraphOffsetX = -10f;
+        public float AtlasGraphOffsetY = -5f;
         public bool ShowMapBadges = true;
         public bool ShowMapCounts = false;
         public bool ShowBiomeBorder = true;
@@ -47,8 +47,8 @@ namespace Atlas
 
         public float BaseWidth = 1920f;
         public float BaseHeight = 1080f;
-        public Vector2 AnchorNudge = Vector2.Zero;
-        public float ScaleMultiplier = 1.1f;
+        public Vector2 AnchorNudge = new(-8.5f, 45f);
+        public float ScaleMultiplier = 0.5f;
 
         public List<MapGroupSettings> MapGroups = [];
         public string GroupNameInput = string.Empty;
