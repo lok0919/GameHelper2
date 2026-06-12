@@ -128,7 +128,9 @@ namespace GameHelper.RemoteObjects.Components
 
                 this.StatusEffects.AddOrUpdate(effectName, statusEffectData, (key, oldValue) =>
                 {
-                    statusEffectData.Charges = ++oldValue.Charges;
+                    var incomingStacks = statusEffectData.Charges > 0 ? statusEffectData.Charges : (short)1;
+                    statusEffectData.Charges = (short)(oldValue.Charges + incomingStacks);
+                    statusEffectData.TimeLeft = Math.Max(oldValue.TimeLeft, statusEffectData.TimeLeft);
                     return statusEffectData;
                 });
             }
