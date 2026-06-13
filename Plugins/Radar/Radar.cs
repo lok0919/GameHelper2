@@ -82,6 +82,14 @@ namespace Radar
         private readonly List<(string cacheKey, Vector2 gridPos, Vector4 color)> tileIconPathSnapshot = new();
         private Dictionary<string, List<Vector2>?> tileIconPathCache = new();
 
+        // Path targets the player has gotten close to, remembered per map instance.
+        // Keyed by AreaHash (stable across leaving/returning to the same instance,
+        // differs for a freshly-generated instance), then by the same cache keys used
+        // by the path caches (entity|<id>, tile|..., area|..., common|...).
+        // reachedPathKeys points at the active instance's set. Render-thread only.
+        private readonly Dictionary<string, HashSet<string>> reachedPathKeysByArea = new();
+        private HashSet<string> reachedPathKeys = new();
+
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
 
         private string ImportantTgtPathName => Path.Join(this.DllDirectory, "important_tgt_files.txt");
@@ -207,6 +215,20 @@ namespace Radar
             ImGui.Checkbox("Show Paths to Icons", ref this.Settings.ShowEntityPaths);
             ImGuiHelper.ToolTip("Global on/off for entity-icon pathing. Does not affect individual icon path settings.");
             ImGui.DragFloat("Icon Path Thickness", ref this.Settings.IconPathThickness, 0.1f, 0.1f, 10.0f, "%.1f");
+            ImGui.Checkbox("Hide reached paths for current map", ref this.Settings.HideReachedPaths);
+            ImGuiHelper.ToolTip("When you get close to a path target (entity, terrain POI or tile), its path stops being drawn for the rest of the current map. Resets automatically on area change.");
+            if (this.Settings.HideReachedPaths)
+            {
+                ImGui.DragFloat("Reached Distance", ref this.Settings.ReachedPathDistance, 1f, 1f, 500f, "%.0f");
+                ImGuiHelper.ToolTip("Grid distance at which a path target counts as reached and is hidden.");
+            }
+
+            if (ImGui.Button("Reset Reached Paths"))
+            {
+                this.reachedPathKeys.Clear();
+            }
+
+            ImGuiHelper.ToolTip("Show all paths for the current map again.");
             if (ImGui.CollapsingHeader("Icons Setting"))
             {
                 this.Settings.DrawIconsSettingToImGui(
@@ -459,6 +481,11 @@ namespace Radar
             this.onForegroundChange = CoroutineHandler.Start(this.OnForegroundChange());
             this.onGameClose = CoroutineHandler.Start(this.OnClose());
             this.onAreaChange = CoroutineHandler.Start(this.ClearCachesAndUpdateAreaInfo());
+            if (isGameOpened)
+            {
+                this.SwitchReachedPathsToCurrentArea();
+            }
+
             this.GenerateMapTexture();
         }
 
@@ -715,7 +742,9 @@ namespace Radar
                     {
                         for (var i = 0; i < locations.Count; i++)
                         {
-                            poiSnapshot.Add(($"{prefix}|{tile.Key}|{i}", locations[i]));
+                            var poiKey = $"{prefix}|{tile.Key}|{i}";
+                            this.MarkReachedIfClose(poiKey, pPos, locations[i]);
+                            poiSnapshot.Add((poiKey, locations[i]));
                         }
                     }
                 }
@@ -779,6 +808,11 @@ namespace Radar
             {
                 var paletteColor = poiPalette[poiColorIndex % poiPalette.Length];
                 poiColorIndex++;
+                if (this.IsReached(cacheKey))
+                {
+                    continue;
+                }
+
                 // Get terrain height at the POI location
                 float poiHeight = 0;
                 if (gridPos.X < gridHeightData[0].Length &&
@@ -1204,6 +1238,10 @@ namespace Radar
             {
                 if (icon != null && icon.ShowPath && icon.IconScale > 0)
                 {
+                    // Record "reached" here (player position is available), but keep the
+                    // target in the snapshot so the background recompute pipeline stays
+                    // stable. Reached paths are skipped at draw time instead.
+                    this.MarkReachedIfClose($"entity|{entityId}", pPos, ePos);
                     this.entityPathSnapshot.Add((entityId, ePos, icon.PathColor));
                 }
             }
@@ -1419,8 +1457,10 @@ namespace Radar
                 {
                     for (var i = 0; i < tgtKV.Value.Count; i++)
                     {
+                        var tileKey = $"tile|{tgtKV.Key}|{i}";
+                        this.MarkReachedIfClose(tileKey, pPos, tgtKV.Value[i]);
                         this.tileIconPathSnapshot.Add((
-                            $"tile|{tgtKV.Key}|{i}",
+                            tileKey,
                             tgtKV.Value[i],
                             tileIcon.PathColor));
                     }
@@ -1537,6 +1577,11 @@ namespace Radar
 
             foreach (var (entityId, _, color) in this.entityPathSnapshot)
             {
+                if (this.IsReached($"entity|{entityId}"))
+                {
+                    continue;
+                }
+
                 if (!this.entityPathCache.TryGetValue(entityId, out var cachedPath) ||
                     cachedPath == null || cachedPath.Count <= 1)
                 {
@@ -1582,6 +1627,11 @@ namespace Radar
             // --- Terrain-tile icon paths ---
             foreach (var (cacheKey, _, color) in this.tileIconPathSnapshot)
             {
+                if (this.IsReached(cacheKey))
+                {
+                    continue;
+                }
+
                 if (!this.tileIconPathCache.TryGetValue(cacheKey, out var cachedPath) ||
                     cachedPath == null || cachedPath.Count <= 1)
                 {
@@ -1624,6 +1674,59 @@ namespace Radar
                 }
             }
         }
+
+        /// <summary>
+        /// Points <see cref="reachedPathKeys"/> at the reached-set for the current map instance,
+        /// keyed by <c>AreaInstance.AreaHash</c>. The hash is stable when leaving and returning to
+        /// the same instance (e.g. a town round-trip), so reached paths stay hidden, but differs for
+        /// a freshly-generated instance of the same area, which starts with an empty set.
+        /// </summary>
+        private void SwitchReachedPathsToCurrentArea()
+        {
+            var areaHash = Core.States.InGameStateObject.CurrentAreaInstance.AreaHash;
+            if (string.IsNullOrEmpty(areaHash))
+            {
+                this.reachedPathKeys = new HashSet<string>();
+                return;
+            }
+
+            if (!this.reachedPathKeysByArea.TryGetValue(areaHash, out var set))
+            {
+                set = new HashSet<string>();
+                this.reachedPathKeysByArea[areaHash] = set;
+            }
+
+            this.reachedPathKeys = set;
+        }
+
+        /// <summary>
+        /// If the feature is enabled and the player is within
+        /// <see cref="RadarSettings.ReachedPathDistance"/> of the target, records
+        /// <paramref name="key"/> as reached for the current map instance so its path stays
+        /// hidden for the rest of the map (even after the player moves away). Called during
+        /// path collection, where the player position is available.
+        /// </summary>
+        private void MarkReachedIfClose(string key, Vector2 playerPos, Vector2 targetPos)
+        {
+            if (!this.Settings.HideReachedPaths || this.reachedPathKeys.Contains(key))
+            {
+                return;
+            }
+
+            var threshold = this.Settings.ReachedPathDistance;
+            if (Vector2.DistanceSquared(playerPos, targetPos) <= threshold * threshold)
+            {
+                this.reachedPathKeys.Add(key);
+            }
+        }
+
+        /// <summary>
+        /// Whether the path target identified by <paramref name="key"/> has been reached and
+        /// should therefore not be drawn. Used at draw time so the recompute pipeline keeps
+        /// seeing a stable snapshot. Honours the <see cref="RadarSettings.HideReachedPaths"/> toggle.
+        /// </summary>
+        private bool IsReached(string key) =>
+            this.Settings.HideReachedPaths && this.reachedPathKeys.Contains(key);
 
         /// <summary>
         /// Smart path computation with optional partial recompute.
@@ -1685,6 +1788,7 @@ namespace Radar
                 yield return new Wait(RemoteEvents.AreaChanged);
                 this.CleanUpRadarPluginCaches();
                 this.currentAreaName = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.Id;
+                this.SwitchReachedPathsToCurrentArea();
                 this.GenerateMapTexture();
                 this.LogBossArenaTgtMatches();
             }

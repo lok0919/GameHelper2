@@ -133,6 +133,20 @@ namespace Radar
         public bool ShowEntityPaths = true;
 
         /// <summary>
+        /// When enabled, once the player gets close to a target that has a path,
+        /// that target is remembered for the current map and its path is no longer drawn.
+        /// Reset on area change or via the "Reset Reached Paths" button.
+        /// </summary>
+        public bool HideReachedPaths = true;
+
+        /// <summary>
+        /// Grid-distance threshold below which a path target counts as "reached"
+        /// and is hidden for the remainder of the current map. Used by
+        /// <see cref="HideReachedPaths"/>.
+        /// </summary>
+        public float ReachedPathDistance = 50f;
+
+        /// <summary>
         /// Gets a value indicating what is the maximum frequency a POI should have
         /// </summary>
         public int POIFrequencyFilter = 0;
