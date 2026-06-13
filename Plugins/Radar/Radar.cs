@@ -781,7 +781,9 @@ namespace Radar
                 // Only launch if no previous task is still running
                 if (this.pendingPathTask == null || this.pendingPathTask.IsCompleted)
                 {
-                    var snap = poiSnapshot;
+                    // Skip reached POIs — see the note in RebuildEntityPaths. Safe because the
+                    // previous task has completed and this is a private list for the new task.
+                    var snap = poiSnapshot.Where(p => !this.IsReached(p.cacheKey)).ToList();
                     var wd = walkableData;
                     var bpr = bytesPerRow;
                     var pp = pPos;
@@ -808,6 +810,10 @@ namespace Radar
             {
                 var paletteColor = poiPalette[poiColorIndex % poiPalette.Length];
                 poiColorIndex++;
+
+                // Reached POIs aren't recomputed (so the smooth path drops out of the cache),
+                // but the straight-line arrow below is computed inline and isn't cache-gated,
+                // so this explicit skip is still required to hide reached POIs.
                 if (this.IsReached(cacheKey))
                 {
                     continue;
@@ -1518,8 +1524,15 @@ namespace Radar
             var pPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
             var doorOverrides = LineWalker.BuildDoorOverrideMap(currentAreaInstance);
 
-            var snap = this.entityPathSnapshot.ToArray();
-            var tileSnap = this.tileIconPathSnapshot.ToArray();
+            // Exclude reached targets from the work the background task does. This is safe:
+            // the task gets its own private copy here, and the throttle above guarantees the
+            // previous task has already completed (the pipeline is effectively "restarted"
+            // each cycle), so we never mutate data a running task is reading. Reached entries
+            // drop out of the cache on the next swap, and the draw path skips them regardless.
+            var snap = this.entityPathSnapshot
+                .Where(e => !this.IsReached($"entity|{e.entityId}")).ToArray();
+            var tileSnap = this.tileIconPathSnapshot
+                .Where(t => !this.IsReached(t.cacheKey)).ToArray();
             var segs = forceFull ? 0 : this.Settings.PathRecomputeSegments;
             var oldEntityCache = this.entityPathCache;
             var oldTileCache = this.tileIconPathCache;
@@ -1577,11 +1590,8 @@ namespace Radar
 
             foreach (var (entityId, _, color) in this.entityPathSnapshot)
             {
-                if (this.IsReached($"entity|{entityId}"))
-                {
-                    continue;
-                }
-
+                // Reached targets are excluded from recompute, so they fall out of the cache
+                // on the next swap and the lookup below skips them — no explicit check needed.
                 if (!this.entityPathCache.TryGetValue(entityId, out var cachedPath) ||
                     cachedPath == null || cachedPath.Count <= 1)
                 {
@@ -1627,11 +1637,7 @@ namespace Radar
             // --- Terrain-tile icon paths ---
             foreach (var (cacheKey, _, color) in this.tileIconPathSnapshot)
             {
-                if (this.IsReached(cacheKey))
-                {
-                    continue;
-                }
-
+                // Reached tiles fall out of the cache on the next swap; the lookup skips them.
                 if (!this.tileIconPathCache.TryGetValue(cacheKey, out var cachedPath) ||
                     cachedPath == null || cachedPath.Count <= 1)
                 {
