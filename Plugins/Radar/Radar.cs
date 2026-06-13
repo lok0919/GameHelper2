@@ -370,12 +370,13 @@ namespace Radar
                 }
 
                 var largeMapRealCenter = largeMap.Center + largeMap.Shift + largeMap.DefaultShift;
-                // Calibrated X bias baked in so LargeMapXOffset defaults to 0.
-                const float LargeMapXBias = -5.7f;
+                // Calibrated biases baked in so LargeMapXOffset/LargeMapYOffset default to 0.
+                const float LargeMapXBias = 0.6f;
+                const float LargeMapYBias = 0.3f;
                 largeMapRealCenter.X += LargeMapXBias + this.Settings.LargeMapXOffset;
-                largeMapRealCenter.Y += this.Settings.LargeMapYOffset;
+                largeMapRealCenter.Y += LargeMapYBias + this.Settings.LargeMapYOffset;
                 // Scale factor calibrated so LargeMapScaleMultiplier = 1.0 produces correct placement.
-                const float LargeMapScaleBaseline = 0.188f;
+                const float LargeMapScaleBaseline = 0.187812f;
                 var largeMapModifiedZoom = this.Settings.LargeMapScaleMultiplier * largeMap.Zoom * LargeMapScaleBaseline;
                 Helper.DiagonalLength = this.largeMapDiagonalLength;
                 Helper.Scale = largeMapModifiedZoom;
