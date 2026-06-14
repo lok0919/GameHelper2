@@ -590,7 +590,7 @@ namespace Radar
         private void AddDefaultRunestoneIcons(string iconPathName)
         {
             this.RunestoneIcons.TryAdd("Runestone Encounter",
-                new IconPicker(iconPathName, 8, 40, 50, IconSize,
+                new IconPicker(iconPathName, 4, 71, 50, IconSize,
                     showPath: true,
                     pathColor: new System.Numerics.Vector4(0f, 145f / 255f, 209f / 255f, 1f)));
             this.RunestoneIcons.TryAdd("Runestones", new IconPicker(iconPathName, 13, 1, 70, IconSize));
