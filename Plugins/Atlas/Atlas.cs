@@ -44,6 +44,7 @@
             "Precursor Tower", "Ancient Gateway", "The Burning Monolith", "Western Gateway",
             "Eastern Gateway", "Western Enigma Chamber", "Eastern Enigma Chamber", "The Origin Tower",
         };
+        private static readonly HashSet<string> QuestsMaps = new(StringComparer.OrdinalIgnoreCase) { "The Withered Willow" };
         private static readonly HashSet<string> RitualMaps = new(StringComparer.OrdinalIgnoreCase) { "Caer Tarth" };
         private static readonly HashSet<string> BreachMaps = new(StringComparer.OrdinalIgnoreCase) { "Hive Colony" };
         private static readonly HashSet<string> ExpeditionMaps = new(StringComparer.OrdinalIgnoreCase) { "Ruins of Kingsmarch" };
@@ -124,6 +125,7 @@
             PathRow("Search", ref Settings.DrawLinesToSearch, ref Settings.SearchPathColor, ref Settings.SearchMaxHops);
             PathRow("Unique Maps", ref Settings.DrawLinesToUniqueMaps, ref Settings.UniquePathColor, ref Settings.UniqueMaxHops);
             PathRow("Lineage Maps", ref Settings.DrawLinesToLineageMaps, ref Settings.LineagePathColor, ref Settings.LineageMaxHops);
+            PathRow("Quests", ref Settings.DrawLinesToQuests, ref Settings.QuestsPathColor, ref Settings.QuestsMaxHops);
             ImGui.NextColumn();
             PathRow("Atlas Progression", ref Settings.DrawLinesToAtlasProgression, ref Settings.AtlasProgressionPathColor, ref Settings.AtlasProgressionMaxHops);
             PathRow("Ritual", ref Settings.DrawLinesToRitual, ref Settings.RitualPathColor, ref Settings.RitualMaxHops);
@@ -448,6 +450,8 @@
                     else if (Settings.DrawLinesToLineageMaps && !completed
                         && nd.Tags.Exists(t => string.Equals(t, "lineage", StringComparison.OrdinalIgnoreCase)))
                         { routeTarget = true; routeColor = ImGuiHelper.Color(Settings.LineagePathColor); maxHops = Settings.LineageMaxHops; }
+                    else if (Settings.DrawLinesToQuests && !completed && QuestsMaps.Contains(mapName))
+                        { routeTarget = true; routeColor = ImGuiHelper.Color(Settings.QuestsPathColor); maxHops = Settings.QuestsMaxHops; }
                     else if (Settings.DrawLinesToArbiterMaps && !completed
                         && nd.Tags.Exists(t => string.Equals(t, "arbiter", StringComparison.OrdinalIgnoreCase)))
                         { routeTarget = true; routeColor = ImGuiHelper.Color(Settings.ArbiterPathColor); maxHops = Settings.ArbiterMaxHops; }

@@ -28,6 +28,9 @@ namespace Atlas
         public bool DrawLinesToArbiterMaps = false;
         public Vector4 ArbiterPathColor = new(1f, 0f, 0f, 50f / 255f);
         public int ArbiterMaxHops = 100;
+        public bool DrawLinesToQuests = false;
+        public Vector4 QuestsPathColor = new(0f, 1f, 1f, 1f); // cyan
+        public int QuestsMaxHops = 100;
 
         // Named-map pathfinding categories (matched by exact display name; see Atlas.*Maps sets).
         public bool DrawLinesToAtlasProgression = false;
@@ -79,6 +82,8 @@ namespace Atlas
             citadels.Maps.Add("The Copper Citadel");
             citadels.Maps.Add("The Iron Citadel");
             citadels.Maps.Add("The Stone Citadel");
+            citadels.Maps.Add("The Matriarch Halls");
+            citadels.Maps.Add("The Patriarch Halls");
 
             var pinnacleBosses = new MapGroupSettings("Pinnacle Boss", new Vector4(0.471f, 0.196f, 0.471f, 0.85f), new Vector4(1f, 1f, 1f, 1f));
             pinnacleBosses.Maps.Add("The Burning Monolith");
