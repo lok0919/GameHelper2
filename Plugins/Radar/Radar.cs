@@ -227,10 +227,12 @@ namespace Radar
             ImGui.DragFloat("Icon Path Thickness", ref this.Settings.IconPathThickness, 0.1f, 0.1f, 10.0f, "%.1f");
             ImGui.Checkbox("Hide reached paths for current map", ref this.Settings.HideReachedPaths);
             ImGuiHelper.ToolTip("When you get close to a path target (entity, terrain POI or tile), its path stops being drawn for the rest of the current map. Resets automatically on area change.");
-            if (this.Settings.HideReachedPaths)
+            ImGui.Checkbox("Hide Runestone socket count when near", ref this.Settings.HideRunestoneSocketsWhenNear);
+            ImGuiHelper.ToolTip("When you get close to a Runestone Encounter, its socket-count label disappears for the rest of the map. Uses the Reached Distance below. Independent of 'Hide reached paths'.");
+            if (this.Settings.HideReachedPaths || this.Settings.HideRunestoneSocketsWhenNear)
             {
                 ImGui.DragFloat("Reached Distance", ref this.Settings.ReachedPathDistance, 1f, 1f, 500f, "%.0f");
-                ImGuiHelper.ToolTip("Grid distance at which a path target counts as reached and is hidden.");
+                ImGuiHelper.ToolTip("Grid distance at which a path target / runestone counts as reached.");
             }
 
             if (ImGui.Button("Reset Reached Paths"))
@@ -238,7 +240,7 @@ namespace Radar
                 this.reachedPathKeys.Clear();
             }
 
-            ImGuiHelper.ToolTip("Show all paths for the current map again.");
+            ImGuiHelper.ToolTip("Show all paths and runestone socket counts for the current map again.");
             if (ImGui.CollapsingHeader("Icons Setting"))
             {
                 this.Settings.DrawIconsSettingToImGui(
@@ -1237,11 +1239,8 @@ namespace Radar
                             if (drawnRuneIcon != null &&
                                 entityValue.TryGetComponent<StateMachine>(out var runeSm))
                             {
-                                // Hide the socket count once the player gets close, reusing the
-                                // pathfinding "reached" mechanism and its single Reached Distance
-                                // value (remembered per map, keyed like the entity's path).
-                                var runeReachKey = $"entity|{entity.Key.id}";
-                                this.MarkReachedIfClose(runeReachKey, pPos, ePos);
+                                // Mark the runestone reached so its path hides like other paths.
+                                this.MarkReachedIfClose($"entity|{entity.Key.id}", pPos, ePos);
 
                                 // Prefer the authoritative RuneStation count; the "sockets"
                                 // state caps at 6 and under-reports higher-hole recipes.
@@ -1263,7 +1262,7 @@ namespace Radar
                                     }
                                 }
 
-                                if (sockets > 0 && !this.IsReached(runeReachKey))
+                                if (sockets > 0 && !this.IsRunestoneSocketHidden(entity.Key.id, pPos, ePos))
                                 {
                                     var socketText = sockets.ToString();
 
@@ -1979,6 +1978,35 @@ namespace Radar
         /// </summary>
         private bool IsReached(string key) =>
             this.Settings.HideReachedPaths && this.reachedPathKeys.Contains(key);
+
+        /// <summary>
+        /// Whether a Runestone Encounter's socket-count label should be hidden because the player
+        /// has gotten close to it. Gated by <see cref="RadarSettings.HideRunestoneSocketsWhenNear"/>
+        /// and uses the single <see cref="RadarSettings.ReachedPathDistance"/>. Remembered per map
+        /// (its own key namespace in <see cref="reachedPathKeys"/>), independent of path hiding.
+        /// </summary>
+        private bool IsRunestoneSocketHidden(uint entityId, Vector2 playerPos, Vector2 runestonePos)
+        {
+            if (!this.Settings.HideRunestoneSocketsWhenNear)
+            {
+                return false;
+            }
+
+            var key = $"rune-socket|{entityId}";
+            if (this.reachedPathKeys.Contains(key))
+            {
+                return true;
+            }
+
+            var threshold = this.Settings.ReachedPathDistance;
+            if (Vector2.DistanceSquared(playerPos, runestonePos) <= threshold * threshold)
+            {
+                this.reachedPathKeys.Add(key);
+                return true;
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// Smart path computation with optional partial recompute.

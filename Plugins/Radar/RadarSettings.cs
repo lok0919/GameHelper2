@@ -147,6 +147,13 @@ namespace Radar
         public float ReachedPathDistance = 50f;
 
         /// <summary>
+        /// When enabled, the socket-count label on a Runestone Encounter disappears once the
+        /// player gets within <see cref="ReachedPathDistance"/> of it (remembered per map).
+        /// Independent of <see cref="HideReachedPaths"/>.
+        /// </summary>
+        public bool HideRunestoneSocketsWhenNear = true;
+
+        /// <summary>
         /// Gets a value indicating what is the maximum frequency a POI should have
         /// </summary>
         public int POIFrequencyFilter = 0;
