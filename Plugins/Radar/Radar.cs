@@ -1243,13 +1243,23 @@ namespace Radar
                                 var runeReachKey = $"entity|{entity.Key.id}";
                                 this.MarkReachedIfClose(runeReachKey, pPos, ePos);
 
-                                long sockets = 0;
-                                foreach (var state in runeSm.States)
+                                // Prefer the authoritative RuneStation count; the "sockets"
+                                // state caps at 6 and under-reports higher-hole recipes.
+                                long sockets;
+                                if (runeSm.TryGetRuneStationSocketCount(out var stationSockets))
                                 {
-                                    if (state.Name == "sockets")
+                                    sockets = stationSockets;
+                                }
+                                else
+                                {
+                                    sockets = 0;
+                                    foreach (var state in runeSm.States)
                                     {
-                                        sockets = state.Value;
-                                        break;
+                                        if (state.Name == "sockets")
+                                        {
+                                            sockets = state.Value;
+                                            break;
+                                        }
                                     }
                                 }
 
