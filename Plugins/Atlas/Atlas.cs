@@ -63,7 +63,8 @@
             public IntPtr Address;
             public StdTuple2D<int> GridPosition;
             public List<StdTuple2D<int>> ConnectedGridPositions;
-            public string MapName;          // normalized
+            public string InternalId;       // internal map id (e.g. "MapUniqueReactor_04"), locale-independent
+            public string MapName;          // normalized display name
             public byte BiomeId;
             public AtlasNodeState State;
             public int BadgeCount;
@@ -83,6 +84,15 @@
         private Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> cachedRouteGraph;
         private HashSet<StdTuple2D<int>> cachedAccessible;
         private Dictionary<StdTuple2D<int>, StdTuple2D<int>> cachedBfsTree;
+
+        // Maps excluded from routing as a start/pass-through node (they may still be a route TARGET).
+        // Matched by internal map id (locale-independent, unlike the display name); e.g.
+        // "MapUniqueReactor_04" ("Site of the Chosen") is accessible but must not be used to reach
+        // anything else.
+        private static readonly HashSet<string> RoutingExcludedMaps = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "MapUniqueReactor_04",
+        };
 
         public override void OnDisable()
         {
@@ -618,6 +628,7 @@
                     Address = map.Address,
                     GridPosition = map.GridPosition,
                     ConnectedGridPositions = map.ConnectedGridPositions.ToList(),
+                    InternalId = map.MapId,
                     MapName = NormalizeName(map.DisplayName),
                     BiomeId = map.BiomeId,
                     State = ToAtlasNodeState(map.State),
@@ -636,13 +647,16 @@
             // the same cadence as the node cache (~3×/sec at 60 fps).
             cachedRouteGraph = new Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>>();
             cachedAccessible = new HashSet<StdTuple2D<int>>();
+            var routingExcluded = new HashSet<StdTuple2D<int>>();
             foreach (var nd in nodeCache)
             {
                 cachedRouteGraph[nd.GridPosition] = nd.ConnectedGridPositions;
-                if (nd.State == AtlasNodeState.AccessibleNow)
+                if (RoutingExcludedMaps.Contains(nd.InternalId))
+                    routingExcluded.Add(nd.GridPosition); // never a start/pass-through (still a valid target)
+                else if (nd.State == AtlasNodeState.AccessibleNow)
                     cachedAccessible.Add(nd.GridPosition);
             }
-            cachedBfsTree = MultiSourceBfs(cachedRouteGraph, cachedAccessible, new HashSet<StdTuple2D<int>>());
+            cachedBfsTree = MultiSourceBfs(cachedRouteGraph, cachedAccessible, new HashSet<StdTuple2D<int>>(), routingExcluded);
         }
 
         private static AtlasNodeState ToAtlasNodeState(AtlasMapNodeState state)
@@ -657,26 +671,32 @@
 
         #region Routing helpers
 
-        // Multi-source BFS from all accessible nodes over the undirected
-        // graph, skipping blocked (failed) nodes. Returns a cameFrom tree
-        // pointing toward the nearest source — reconstruct paths with
-        // PathFromAccessible.
+        // Multi-source BFS from all accessible nodes over the undirected graph, skipping blocked
+        // (failed) nodes. Nodes in `noPass` are never seeded as a source and never expanded, so they
+        // can't be a start or a pass-through — but they can still be *reached* (a path may end at one),
+        // so routing TO such a node still works. Returns a cameFrom tree pointing toward the nearest
+        // source — reconstruct paths with PathFromAccessible.
         private static Dictionary<StdTuple2D<int>, StdTuple2D<int>> MultiSourceBfs(
             Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> graph,
             HashSet<StdTuple2D<int>> sources,
-            HashSet<StdTuple2D<int>> blocked)
+            HashSet<StdTuple2D<int>> blocked,
+            HashSet<StdTuple2D<int>> noPass)
         {
             var cameFrom = new Dictionary<StdTuple2D<int>, StdTuple2D<int>>();
             var visited = new HashSet<StdTuple2D<int>>();
             var queue = new Queue<StdTuple2D<int>>();
 
             foreach (var s in sources)
-                if (graph.ContainsKey(s) && !blocked.Contains(s) && visited.Add(s))
+                if (graph.ContainsKey(s) && !blocked.Contains(s) && !noPass.Contains(s) && visited.Add(s))
                     queue.Enqueue(s);
 
             while (queue.Count > 0)
             {
                 var cur = queue.Dequeue();
+                // A no-pass node can be reached (it's a valid target) but is never expanded, so no
+                // route is ever drawn THROUGH it.
+                if (noPass.Contains(cur))
+                    continue;
                 if (!graph.TryGetValue(cur, out var neighbors))
                     continue;
                 foreach (var nb in neighbors)
