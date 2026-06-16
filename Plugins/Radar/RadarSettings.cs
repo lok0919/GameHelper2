@@ -296,6 +296,38 @@ namespace Radar
         public Dictionary<string, IconPicker> AbyssIcons = new();
 
         /// <summary>
+        /// Icons to display on the map for specific Strongbox chests, matched by entity path.
+        /// </summary>
+        public Dictionary<string, IconPicker> StrongboxIcons = new();
+
+        /// <summary>
+        /// Maps a Strongbox entity-path substring to its display-name key in <see cref="StrongboxIcons"/>.
+        /// Add a new strongbox type here plus a default in AddDefaultStrongboxIcons.
+        /// </summary>
+        [JsonIgnore]
+        public static readonly Dictionary<string, string> StrongboxPathMap = new()
+        {
+            { "ResearchStrongbox", "Research Strongbox" },
+            { "ArmourerStrongbox", "Armourer Strongbox" },
+        };
+
+        /// <summary>
+        /// Returns the <see cref="StrongboxIcons"/> key matching the given entity path, or null if none.
+        /// </summary>
+        public static string? StrongboxKeyForPath(string path)
+        {
+            foreach (var kv in StrongboxPathMap)
+            {
+                if (path.Contains(kv.Key))
+                {
+                    return kv.Value;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// The group number used for expedition markers in SpecialMiscObjPaths.
         /// </summary>
         [JsonIgnore]
@@ -515,6 +547,7 @@ namespace Radar
             this.AddDefaultRunestoneIcons(basicIconPathName);
             this.AddDefaultRitualIcons(basicIconPathName);
             this.AddDefaultAbyssIcons(basicIconPathName);
+            this.AddDefaultStrongboxIcons(basicIconPathName);
             this.AddDefaultTempleIcons(basicIconPathName);
             this.AddDefaultBossIcons(basicIconPathName);
         }
@@ -526,7 +559,9 @@ namespace Radar
             this.BaseIcons.TryAdd("Leader", new IconPicker(iconPathName, 3, 1, 20, IconSize));
             this.BaseIcons.TryAdd("NPC", new IconPicker(iconPathName, 3, 0, 30, IconSize));
             this.BaseIcons.TryAdd("Special NPC", new IconPicker(iconPathName, 13, 42, 100, IconSize));
-            this.BaseIcons.TryAdd("Strongbox", new IconPicker(iconPathName, 8, 38, 30, IconSize));
+            var strongboxBase = new IconPicker(iconPathName, 8, 38, 30, IconSize);
+            strongboxBase.Show = false; // hidden by default (specific strongboxes use the Strongboxes category)
+            this.BaseIcons.TryAdd("Strongbox", strongboxBase);
             this.BaseIcons.TryAdd("Magic Chests", new IconPicker(iconPathName, 1, 13, 20, IconSize));
             this.BaseIcons.TryAdd("Rare Chests", new IconPicker(iconPathName, 4, 48, 20, IconSize));
             this.BaseIcons.TryAdd("All Other Chest", new IconPicker(iconPathName, 6, 9, 20, IconSize));
@@ -609,6 +644,12 @@ namespace Radar
                 new IconPicker(iconPathName, 8, 40, 50, IconSize,
                     showPath: true,
                     pathColor: new System.Numerics.Vector4(113f / 255f, 0f, 1f, 1f)));
+        }
+
+        private void AddDefaultStrongboxIcons(string iconPathName)
+        {
+            this.StrongboxIcons.TryAdd("Research Strongbox", new IconPicker(iconPathName, 10, 38, 50, IconSize));
+            this.StrongboxIcons.TryAdd("Armourer Strongbox", new IconPicker(iconPathName, 1, 39, 50, IconSize));
         }
 
         private void AddDefaultAbyssIcons(string iconPathName)

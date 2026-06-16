@@ -94,11 +94,14 @@ namespace Radar
         // Abyss cracks/pit remembered per map instance (keyed by AreaHash, then by a stable
         // position+type key). Fed by both the awake-entity pass and a throttled background scan
         // of the game's larger-range SleepingEntities map, so the abyss line persists once seen.
-        private const int AbyssScanIntervalMs = 1000;
-        private readonly Dictionary<string, ConcurrentDictionary<string, (Vector2 gridPos, float height, string iconKey)>> abyssNodesByArea = new();
-        private ConcurrentDictionary<string, (Vector2 gridPos, float height, string iconKey)> abyssNodes = new();
-        private long nextAbyssScanTime;
-        private Task? pendingAbyssScanTask;
+        // Static "tracked" map objects (Abyss cracks/pit, specific Strongboxes) remembered per map
+        // instance. Fed by the awake-entity pass and a throttled scan of the game's larger-range
+        // SleepingEntities map, so they appear well beyond the network bubble and persist once seen.
+        private const int TrackedScanIntervalMs = 1000;
+        private readonly Dictionary<string, ConcurrentDictionary<string, (Vector2 gridPos, float height, string category, string iconKey)>> trackedNodesByArea = new();
+        private ConcurrentDictionary<string, (Vector2 gridPos, float height, string category, string iconKey)> trackedNodes = new();
+        private long nextTrackedScanTime;
+        private Task? pendingTrackedScanTask;
 
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
 
@@ -296,6 +299,11 @@ namespace Radar
                     "Icons for Abyss nodes. 'Other' matches any remaining Abyss-path entity.");
 
                 this.Settings.DrawIconsSettingToImGui(
+                    "Strongboxes",
+                    this.Settings.StrongboxIcons,
+                    "Icons for specific Strongbox chests, matched by entity path.");
+
+                this.Settings.DrawIconsSettingToImGui(
                     "Boss Icons",
                     this.Settings.BossIcons,
                     "Icons for map boss arenas.");
@@ -383,7 +391,7 @@ namespace Radar
 
             this.CollectEntityPaths();
             this.RebuildEntityPaths();
-            this.RebuildAbyssNodes();
+            this.RebuildTrackedNodes();
 
             if (largeMap.IsVisible && !Core.States.InGameStateObject.GameUi.WorldMapPanel.IsVisible)
             {
@@ -1103,6 +1111,15 @@ namespace Radar
 
                         break;
                     case EntityTypes.Chest:
+                        var strongboxKey = RadarSettings.StrongboxKeyForPath(entityValue.Path);
+                        if (strongboxKey != null)
+                        {
+                            // Record into the tracked cache (drawn from there so it persists and
+                            // merges with the sleeping scan — strongboxes are static).
+                            this.RecordTrackedNode("strongbox", strongboxKey, ePos, entityRender.TerrainHeight);
+                            break;
+                        }
+
                         switch (entityValue.EntitySubtype)
                         {
                             case EntitySubtypes.None:
@@ -1301,11 +1318,11 @@ namespace Radar
                             // (drawn from there so they persist and merge with the sleeping scan).
                             if (entityValue.Path.Contains("AbyssCrack"))
                             {
-                                this.RecordAbyssNode("Abyss Crack", ePos, entityRender.TerrainHeight);
+                                this.RecordTrackedNode("abyss", "Abyss Crack", ePos, entityRender.TerrainHeight);
                             }
                             else if (entityValue.Path.Contains("AbyssFinalNodeBase"))
                             {
-                                this.RecordAbyssNode("Abyss Pit", ePos, entityRender.TerrainHeight);
+                                this.RecordTrackedNode("abyss", "Abyss Pit", ePos, entityRender.TerrainHeight);
                             }
                         }
                         else if (entityValue.EntityCustomGroup == RadarSettings.BreachInitiatorGroup)
@@ -1333,12 +1350,14 @@ namespace Radar
                 }
             }
 
-            // Draw cached Abyss cracks/pit (persisted per-map; fed by the awake pass above and
-            // the throttled sleeping-entity scan). Static objects, so cached positions stay valid.
-            foreach (var node in this.abyssNodes)
+            // Draw cached tracked nodes (Abyss cracks/pit, specific Strongboxes) — persisted per-map,
+            // fed by the awake pass above and the throttled sleeping-entity scan. Static objects, so
+            // cached positions stay valid.
+            foreach (var node in this.trackedNodes)
             {
-                var (gridPos, height, iconKey) = node.Value;
-                if (!this.Settings.AbyssIcons.TryGetValue(iconKey, out var icon) || !icon.Draw)
+                var (gridPos, height, category, iconKey) = node.Value;
+                var icon = this.ResolveTrackedIcon(category, iconKey);
+                if (icon == null || !icon.Draw)
                 {
                     continue;
                 }
@@ -1435,6 +1454,13 @@ namespace Radar
                         break;
 
                     case EntityTypes.Chest:
+                        // Tracked strongboxes get their paths from the per-map cache pass below
+                        // (covers far, sleeping-only ones), so skip them here.
+                        if (RadarSettings.StrongboxKeyForPath(ev.Path) != null)
+                        {
+                            break;
+                        }
+
                         IconPicker? chestIcon = ev.EntitySubtype switch
                         {
                             EntitySubtypes.ChestWithRareRarity => baseIcons["Rare Chests"],
@@ -1630,21 +1656,21 @@ namespace Radar
                 }
             }
 
-            // --- Abyss cracks/pit paths (from the persisted cache) ---
-            // Paths come from the cache rather than the awake-entity pass, so far nodes such as
-            // the pit — which usually live only in SleepingEntities and never become awake — still
-            // get a path. Reused through the tile-path machinery (computed + drawn the same way).
-            foreach (var node in this.abyssNodes)
+            // --- Tracked-node paths (Abyss cracks/pit, Strongboxes) from the persisted cache ---
+            // Paths come from the cache rather than the awake-entity pass, so far nodes — which
+            // usually live only in SleepingEntities and never become awake — still get a path.
+            // Reused through the tile-path machinery (computed + drawn the same way).
+            foreach (var node in this.trackedNodes)
             {
-                var (gridPos, _, iconKey) = node.Value;
-                if (!this.Settings.AbyssIcons.TryGetValue(iconKey, out var abyssIcon) ||
-                    !abyssIcon.ShowPath || !abyssIcon.Draw)
+                var (gridPos, _, category, iconKey) = node.Value;
+                var icon = this.ResolveTrackedIcon(category, iconKey);
+                if (icon == null || !icon.ShowPath || !icon.Draw)
                 {
                     continue;
                 }
 
                 this.MarkReachedIfClose(node.Key, pPos, gridPos);
-                this.tileIconPathSnapshot.Add((node.Key, gridPos, abyssIcon.PathColor));
+                this.tileIconPathSnapshot.Add((node.Key, gridPos, icon.PathColor));
             }
         }
 
@@ -1867,7 +1893,7 @@ namespace Radar
             if (string.IsNullOrEmpty(areaHash))
             {
                 this.reachedPathKeys = new HashSet<string>();
-                this.abyssNodes = new ConcurrentDictionary<string, (Vector2, float, string)>();
+                this.trackedNodes = new ConcurrentDictionary<string, (Vector2, float, string, string)>();
                 return;
             }
 
@@ -1879,60 +1905,96 @@ namespace Radar
 
             this.reachedPathKeys = set;
 
-            if (!this.abyssNodesByArea.TryGetValue(areaHash, out var abyss))
+            if (!this.trackedNodesByArea.TryGetValue(areaHash, out var tracked))
             {
-                abyss = new ConcurrentDictionary<string, (Vector2, float, string)>();
-                this.abyssNodesByArea[areaHash] = abyss;
+                tracked = new ConcurrentDictionary<string, (Vector2, float, string, string)>();
+                this.trackedNodesByArea[areaHash] = tracked;
             }
 
-            this.abyssNodes = abyss;
+            this.trackedNodes = tracked;
         }
 
         /// <summary>
-        /// Records a static Abyss node (crack or pit) into the per-map cache so it stays drawn
-        /// for the rest of the map. Keyed by type + rounded grid position (stable for static
-        /// objects). Safe to call from any thread (<see cref="abyssNodes"/> is concurrent).
+        /// Records a static tracked node (Abyss crack/pit or a Strongbox) into the per-map cache
+        /// so it stays drawn for the rest of the map. Keyed by category + icon key + rounded grid
+        /// position (stable for static objects). Safe to call from any thread.
         /// </summary>
-        private void RecordAbyssNode(string iconKey, Vector2 gridPos, float height)
+        private void RecordTrackedNode(string category, string iconKey, Vector2 gridPos, float height)
         {
-            var key = $"{iconKey}|{(int)gridPos.X}|{(int)gridPos.Y}";
-            this.abyssNodes[key] = (gridPos, height, iconKey);
+            var key = $"{category}|{iconKey}|{(int)gridPos.X}|{(int)gridPos.Y}";
+            this.trackedNodes[key] = (gridPos, height, category, iconKey);
         }
 
         /// <summary>
-        /// Throttled background scan of the game's SleepingEntities map for Abyss cracks/pit only
-        /// (never monsters/other, which move). Found nodes are merged into the per-map cache so the
-        /// abyss line is revealed at the larger sleeping-entity radius and persists once seen.
+        /// Classifies an entity path into a tracked (category, iconKey), or null if not tracked.
+        /// Static + side-effect-free so it is safe to call from the background scan thread.
         /// </summary>
-        private void RebuildAbyssNodes()
+        private static (string category, string iconKey)? ClassifyTrackedPath(string path)
         {
-            var crackOn = this.Settings.AbyssIcons.TryGetValue("Abyss Crack", out var crackIcon) && crackIcon.Draw;
-            var pitOn = this.Settings.AbyssIcons.TryGetValue("Abyss Pit", out var pitIcon) && pitIcon.Draw;
-            if (!crackOn && !pitOn)
+            if (path.Contains("AbyssCrack"))
+            {
+                return ("abyss", "Abyss Crack");
+            }
+
+            if (path.Contains("AbyssFinalNodeBase"))
+            {
+                return ("abyss", "Abyss Pit");
+            }
+
+            var strongboxKey = RadarSettings.StrongboxKeyForPath(path);
+            if (strongboxKey != null)
+            {
+                return ("strongbox", strongboxKey);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the configured icon for a tracked node's category + key.
+        /// </summary>
+        private IconPicker? ResolveTrackedIcon(string category, string iconKey)
+        {
+            var dict = category == "strongbox" ? this.Settings.StrongboxIcons : this.Settings.AbyssIcons;
+            return dict.TryGetValue(iconKey, out var icon) ? icon : null;
+        }
+
+        /// <summary>
+        /// Throttled background scan of the game's SleepingEntities map for tracked static objects
+        /// only (Abyss cracks/pit and specific Strongboxes — never monsters/other, which move).
+        /// Found nodes are merged into the per-map cache so they're revealed at the larger
+        /// sleeping-entity radius and persist once seen.
+        /// </summary>
+        private void RebuildTrackedNodes()
+        {
+            var anyEnabled =
+                (this.Settings.AbyssIcons.TryGetValue("Abyss Crack", out var crackIcon) && crackIcon.Draw) ||
+                (this.Settings.AbyssIcons.TryGetValue("Abyss Pit", out var pitIcon) && pitIcon.Draw) ||
+                this.Settings.StrongboxIcons.Values.Any(i => i.Draw);
+            if (!anyEnabled)
             {
                 return;
             }
 
             var now = Environment.TickCount64;
-            if (now < this.nextAbyssScanTime)
+            if (now < this.nextTrackedScanTime)
             {
                 return;
             }
 
-            this.nextAbyssScanTime = now + AbyssScanIntervalMs;
+            this.nextTrackedScanTime = now + TrackedScanIntervalMs;
 
-            if (this.pendingAbyssScanTask != null && !this.pendingAbyssScanTask.IsCompleted)
+            if (this.pendingTrackedScanTask != null && !this.pendingTrackedScanTask.IsCompleted)
             {
                 return;
             }
 
             var areaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
-            var target = this.abyssNodes;
-            this.pendingAbyssScanTask = Task.Run(() =>
+            var target = this.trackedNodes;
+            this.pendingTrackedScanTask = Task.Run(() =>
             {
                 areaInstance.ScanSleepingEntities(
-                    p => p.Contains("AbyssCrack", StringComparison.Ordinal) ||
-                         p.Contains("AbyssFinalNodeBase", StringComparison.Ordinal),
+                    p => ClassifyTrackedPath(p) != null,
                     (key, entity) =>
                     {
                         if (!entity.TryGetComponent<Render>(out var r))
@@ -1940,12 +2002,16 @@ namespace Radar
                             return;
                         }
 
+                        var classified = ClassifyTrackedPath(entity.Path);
+                        if (classified == null)
+                        {
+                            return;
+                        }
+
+                        var (category, iconKey) = classified.Value;
                         var gridPos = new Vector2(r.GridPosition.X, r.GridPosition.Y);
-                        var iconKey = entity.Path.Contains("AbyssCrack", StringComparison.Ordinal)
-                            ? "Abyss Crack"
-                            : "Abyss Pit";
-                        var k = $"{iconKey}|{(int)gridPos.X}|{(int)gridPos.Y}";
-                        target[k] = (gridPos, r.TerrainHeight, iconKey);
+                        var k = $"{category}|{iconKey}|{(int)gridPos.X}|{(int)gridPos.Y}";
+                        target[k] = (gridPos, r.TerrainHeight, category, iconKey);
                     });
             });
         }
