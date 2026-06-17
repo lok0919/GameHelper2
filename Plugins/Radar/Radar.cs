@@ -232,6 +232,9 @@ namespace Radar
             ImGuiHelper.ToolTip("When you get close to a path target (entity, terrain POI or tile), its path stops being drawn for the rest of the current map. Resets automatically on area change.");
             ImGui.Checkbox("Hide Runestone socket count when near", ref this.Settings.HideRunestoneSocketsWhenNear);
             ImGuiHelper.ToolTip("When you get close to a Runestone Encounter, its socket-count label disappears for the rest of the map. Uses the Reached Distance below. Independent of 'Hide reached paths'.");
+            ImGui.DragFloat("Runestone Socket X Offset", ref this.Settings.RunestoneSocketOffsetX, 0.5f);
+            ImGui.DragFloat("Runestone Socket Y Offset", ref this.Settings.RunestoneSocketOffsetY, 0.5f);
+            ImGuiHelper.ToolTip("Screen-pixel offset for the Runestone socket-count number.");
             if (this.Settings.HideReachedPaths || this.Settings.HideRunestoneSocketsWhenNear)
             {
                 ImGui.DragFloat("Reached Distance", ref this.Settings.ReachedPathDistance, 1f, 1f, 500f, "%.0f");
@@ -1295,10 +1298,8 @@ namespace Radar
                                     var textHalf = textSize / 2f;
                                     var iconHalfWidth = iconSizeMultiplier * drawnRuneIcon.IconScale;
                                     var textPos = new Vector2(
-                                        screenPos.X + iconHalfWidth + 2f,
-                                        screenPos.Y - textHalf.Y);
-                                    fgDraw.AddRectFilled(textPos, textPos + textSize,
-                                        ImGuiHelper.Color(0, 0, 0, 200));
+                                        screenPos.X + iconHalfWidth + 2f + this.Settings.RunestoneSocketOffsetX,
+                                        screenPos.Y - textHalf.Y + this.Settings.RunestoneSocketOffsetY);
                                     fgDraw.AddText(ImGui.GetFont(), fontSize, textPos,
                                         textColor, socketText);
                                 }

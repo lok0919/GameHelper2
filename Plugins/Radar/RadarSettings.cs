@@ -154,6 +154,16 @@ namespace Radar
         public bool HideRunestoneSocketsWhenNear = true;
 
         /// <summary>
+        /// Screen-pixel X/Y offset applied to the Runestone socket-count label position.
+        /// </summary>
+        public float RunestoneSocketOffsetX = 0f;
+
+        /// <summary>
+        /// Screen-pixel Y offset applied to the Runestone socket-count label position.
+        /// </summary>
+        public float RunestoneSocketOffsetY = 0f;
+
+        /// <summary>
         /// Gets a value indicating what is the maximum frequency a POI should have
         /// </summary>
         public int POIFrequencyFilter = 0;
