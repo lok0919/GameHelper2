@@ -237,6 +237,7 @@ namespace GameHelper.Settings
             ("Metadata/Terrain/Leagues/Ritual/RitualRuneObject", 104),
             ("Metadata/MiscellaneousObjects/Abyss", 105),
             ("Metadata/MiscellaneousObjects/Brequel/BrequelInitiator", 106),
+            ("Metadata/Terrain/Leagues/Sanctum/Objects/SanctumMote", 107),
         };
 
         /// <summary>
@@ -255,6 +256,8 @@ namespace GameHelper.Settings
             "Metadata/Monsters/CageSkeleton/CageSkeleton",
             "Metadata/Pet",
             "Metadata/Monsters/JellfishNettler/JellyfishNettlerFlying",
+            "Metadata/Monsters/MarakethSanctumTrial/Hazards/GroundSpike",
+            "Metadata/Monsters/MarakethSanctumTrial/Hazards/ProjectilePortal",
         };
 
         /// <summary>

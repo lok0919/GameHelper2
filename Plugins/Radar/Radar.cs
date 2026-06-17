@@ -307,6 +307,11 @@ namespace Radar
                     "Icons for specific Strongbox chests, matched by entity path.");
 
                 this.Settings.DrawIconsSettingToImGui(
+                    "Sekhemas",
+                    this.Settings.SekhemasIcons,
+                    "Icons for Sanctum (Trial of the Sekhemas) objects.");
+
+                this.Settings.DrawIconsSettingToImGui(
                     "Boss Icons",
                     this.Settings.BossIcons,
                     "Icons for map boss arenas.");
@@ -1334,6 +1339,14 @@ namespace Radar
                                 DrawIcon(breachIcon);
                             }
                         }
+                        else if (entityValue.EntityCustomGroup == RadarSettings.SekhemasGroup)
+                        {
+                            if (this.Settings.SekhemasIcons.TryGetValue("Sacred Water", out var sacredWaterIcon) &&
+                                sacredWaterIcon.Draw)
+                            {
+                                DrawIcon(sacredWaterIcon);
+                            }
+                        }
                         else
                         {
                             if (!otherImportantObjects.TryGetValue(entityValue.EntityCustomGroup, out var mopoiIcon))
@@ -1601,6 +1614,14 @@ namespace Radar
                                 breachIcon.Draw)
                             {
                                 TryAdd(eId, ePos, breachIcon);
+                            }
+                        }
+                        else if (ev.EntityCustomGroup == RadarSettings.SekhemasGroup)
+                        {
+                            if (this.Settings.SekhemasIcons.TryGetValue("Sacred Water", out var sacredWaterIcon) &&
+                                sacredWaterIcon.Draw)
+                            {
+                                TryAdd(eId, ePos, sacredWaterIcon);
                             }
                         }
                         else
