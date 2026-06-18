@@ -26,6 +26,16 @@ namespace GameHelper.Utils
         private const long MaxUserModeAddress = 0x7FFFFFFFFFFF;
 
         /// <summary>
+        ///     Lowest address that can ever back a real allocation. The first 64 KiB is the
+        ///     reserved null-pointer partition on Windows x64, and allocation granularity is
+        ///     64 KiB, so anything below this is never a valid pointer. Game pointers live far
+        ///     above this (module base 0x140000000+, heap in the TiB range), so this floor never
+        ///     rejects a legitimate read — it only catches data values (floats, small ints,
+        ///     string fragments) that a torn read fed in where a pointer was expected.
+        /// </summary>
+        private const long MinValidAddress = 0x10000;
+
+        /// <summary>
         ///     Required by SafeHandle infrastructure for finalizer / marshaling support.
         ///     Private to prevent callers accidentally constructing a zombie handle
         ///     without a PID — see audit F-034. Real construction must go through
@@ -66,29 +76,76 @@ namespace GameHelper.Utils
         internal T ReadMemory<T>(IntPtr address)
             where T : unmanaged
         {
-            T result = default;
-            var addr = address.ToInt64();
-            if (this.IsInvalid || addr <= 0 || addr > MaxUserModeAddress)
+            // Silent skip for an unreadable address mirrors the historical behaviour
+            // (return default, no log) so only a genuine RPM failure on a plausible
+            // address is reported below.
+            if (this.IsInvalid || !IsValidAddress(address))
+            {
+                return default;
+            }
+
+            if (this.TryReadMemory<T>(address, out var result))
             {
                 return result;
+            }
+
+            Console.WriteLine("ERROR: Failed To Read the Memory (T)" +
+                              $" due to Error Number: 0x{NativeWrapper.LastError:X} on " +
+                              $"adress 0x{address.ToInt64():X} for type {typeof(T).Name}" +
+                              $" [caller: {DescribeCaller()}]");
+            return default;
+        }
+
+        /// <summary>
+        ///     Reads the process memory as type T without logging on failure. Returns false
+        ///     (and <paramref name="result"/> = default) when the handle is invalid, the
+        ///     address fails the <see cref="IsValidAddress"/> sanity check, or the underlying
+        ///     read fails. Use this on hot, inherently-racy paths (e.g. walking a live,
+        ///     concurrently-mutated container) where torn reads are expected and recoverable,
+        ///     so they don't flood the log. Use <see cref="ReadMemory{T}"/> elsewhere so a
+        ///     genuine offset/layout breakage still surfaces.
+        /// </summary>
+        /// <typeparam name="T">type of data structure to read.</typeparam>
+        /// <param name="address">address to read the data from.</param>
+        /// <param name="result">data read from the process, or default on failure.</param>
+        /// <returns>true if the read succeeded; otherwise false.</returns>
+        internal bool TryReadMemory<T>(IntPtr address, out T result)
+            where T : unmanaged
+        {
+            result = default;
+            if (this.IsInvalid || !IsValidAddress(address))
+            {
+                return false;
             }
 
             try
             {
                 if (!NativeWrapper.ReadProcessMemory(this.handle, address, ref result))
                 {
-                    throw new Exception("Failed To Read the Memory (T)" +
-                                        $" due to Error Number: 0x{NativeWrapper.LastError:X} on " +
-                                        $"adress 0x{address.ToInt64():X}");
+                    result = default;
+                    return false;
                 }
 
-                return result;
+                return true;
             }
-            catch (Exception e)
+            catch
             {
-                Console.WriteLine($"ERROR: {e.Message}");
-                return default;
+                result = default;
+                return false;
             }
+        }
+
+        /// <summary>
+        ///     Cheap sanity check that an address could plausibly back a real allocation in
+        ///     the target process. Rejects the reserved low memory range and addresses beyond
+        ///     the 48-bit user-mode limit. Does not guarantee the address is currently mapped.
+        /// </summary>
+        /// <param name="address">address to check.</param>
+        /// <returns>true if the address is within the plausible user-mode range.</returns>
+        internal static bool IsValidAddress(IntPtr address)
+        {
+            var addr = address.ToInt64();
+            return addr >= MinValidAddress && addr <= MaxUserModeAddress;
         }
 
         /// <summary>
@@ -122,8 +179,7 @@ namespace GameHelper.Utils
         internal T[] ReadMemoryArray<T>(IntPtr address, int nsize)
             where T : unmanaged
         {
-            var addr = address.ToInt64();
-            if (this.IsInvalid || addr <= 0 || addr > MaxUserModeAddress || nsize <= 0)
+            if (this.IsInvalid || !IsValidAddress(address) || nsize <= 0)
             {
                 return Array.Empty<T>();
             }
@@ -136,7 +192,8 @@ namespace GameHelper.Utils
                 {
                     throw new Exception("Failed To Read the Memory (array)" +
                                         $" due to Error Number: 0x{NativeWrapper.LastError:X}" +
-                                        $" on address 0x{address.ToInt64():X} with size {nsize}");
+                                        $" on address 0x{address.ToInt64():X} with size {nsize}" +
+                                        $" for type {typeof(T).Name} [caller: {DescribeCaller()}]");
                 }
 
                 var expectedBytes = (long)nsize * Marshal.SizeOf<T>();
@@ -335,14 +392,17 @@ namespace GameHelper.Utils
                     onEachNotNullNode(current.Data.Key, current.Data.Value);
                 }
 
-                var leftChild = this.ReadMemory<StdMapNode<TKey, TValue>>(current.Left);
-                if (!leftChild.IsNil)
+                // Child pointers are read from a live tree the game mutates concurrently, so a
+                // torn read can yield a non-pointer value. Use the non-logging read + validity
+                // check and simply stop descending that branch on failure (audit: torn-read noise).
+                if (this.TryReadMemory<StdMapNode<TKey, TValue>>(current.Left, out var leftChild) &&
+                    !leftChild.IsNil)
                 {
                     childrens.Enqueue(leftChild);
                 }
 
-                var rightChild = this.ReadMemory<StdMapNode<TKey, TValue>>(current.Right);
-                if (!rightChild.IsNil)
+                if (this.TryReadMemory<StdMapNode<TKey, TValue>>(current.Right, out var rightChild) &&
+                    !rightChild.IsNil)
                 {
                     childrens.Enqueue(rightChild);
                 }
@@ -414,6 +474,40 @@ namespace GameHelper.Utils
             }
 
             return this.ReadStdVector<TValue>(nativeContainer.Data);
+        }
+
+        /// <summary>
+        ///     Walks the current call stack to find the first frame outside this class and
+        ///     returns "AssemblyName!Type.Method". Used only on the (rare) memory-read error
+        ///     path to attribute a bad read to core vs. a specific plugin assembly. The
+        ///     assembly name distinguishes plugins (each loaded under its own ALC/name) from
+        ///     GameHelper core. Stack capture is skipped for line info to keep it cheap.
+        /// </summary>
+        /// <returns>caller description, or a fallback string if it can't be determined.</returns>
+        private static string DescribeCaller()
+        {
+            try
+            {
+                var stack = new System.Diagnostics.StackTrace(1, false);
+                foreach (var frame in stack.GetFrames())
+                {
+                    var method = frame?.GetMethod();
+                    var declaringType = method?.DeclaringType;
+                    if (declaringType == null || declaringType == typeof(SafeMemoryHandle))
+                    {
+                        continue;
+                    }
+
+                    var asm = declaringType.Assembly.GetName().Name ?? "?";
+                    return $"{asm}!{declaringType.Name}.{method!.Name}";
+                }
+
+                return "<unknown>";
+            }
+            catch
+            {
+                return "<unavailable>";
+            }
         }
 
         /// <summary>

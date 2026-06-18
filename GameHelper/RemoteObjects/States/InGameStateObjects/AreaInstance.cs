@@ -352,6 +352,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     return false;
                 }
 
+                // Drop torn-read entries whose pointer can't back a real entity.
+                if (!SafeMemoryHandle.IsValidAddress(value.EntityPtr))
+                {
+                    return false;
+                }
+
                 if (data.TryGetValue(key, out var entity))
                 {
                     entity.Address = value.EntityPtr;
@@ -620,6 +626,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 true,
                 (key, value) =>
                 {
+                    // Drop torn-read entries whose pointer can't back a real entity.
+                    if (!SafeMemoryHandle.IsValidAddress(value.EntityPtr))
+                    {
+                        return false;
+                    }
+
                     var entity = new Entity(value.EntityPtr);
                     if (!string.IsNullOrEmpty(entity.Path) && pathFilter(entity.Path))
                     {

@@ -316,14 +316,24 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 this.componentAddresses.Clear();
                 this.componentCache.Clear();
 
-                var entityDetails = reader.ReadMemory<EntityDetails>(idata.EntityDetailsPtr);
+                // idata comes from a possibly-torn ItemBase read, so EntityDetailsPtr can be a
+                // garbage value. Fail quietly (caller retries) instead of logging an error.
+                if (!reader.TryReadMemory<EntityDetails>(idata.EntityDetailsPtr, out var entityDetails))
+                {
+                    return false;
+                }
+
                 this.Path = reader.ReadStdWString(entityDetails.name);
                 if (string.IsNullOrEmpty(this.Path))
                 {
                     return false;
                 }
 
-                var lookupPtr = reader.ReadMemory<ComponentLookUpStruct>(entityDetails.ComponentLookUpPtr);
+                if (!reader.TryReadMemory<ComponentLookUpStruct>(entityDetails.ComponentLookUpPtr, out var lookupPtr))
+                {
+                    return false;
+                }
+
                 if (lookupPtr.ComponentsNameAndIndex.Capacity > MaxComponentsInAnEntity)
                 {
                     return false;
@@ -372,7 +382,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         protected override void UpdateData(bool hasAddressChanged)
         {
             var reader = Core.Process.Handle;
-            var entityData = reader.ReadMemory<EntityOffsets>(this.Address);
+
+            // The address comes from a live entity map the game mutates concurrently, so a
+            // torn read can hand us a stale/garbage pointer. Treat a failed read as "not a
+            // valid entity this frame" rather than logging it as an error.
+            if (!reader.TryReadMemory<EntityOffsets>(this.Address, out var entityData))
+            {
+                this.IsValid = false;
+                return;
+            }
+
             this.IsValid = EntityHelper.IsValidEntity(entityData.IsValid);
             if (!this.IsValid)
             {
