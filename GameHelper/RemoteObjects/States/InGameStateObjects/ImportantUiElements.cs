@@ -53,6 +53,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private const int UiElementBaseFlagsOffset = 0x180;
         private const uint IsVisibleMask = 0x800;
         private const uint AtlasCurrentNodeMarkerFp = 0x502EF3;
+        private const uint AtlasMapNodeFp = 0x542EF3;
+        private const int AtlasNodeMaxContentChildren = 64;
+        private const int AtlasNodeMaxContentTokens = 64;
 
         private readonly UiElementParents rootCache;
         private readonly UiElementParents passiveSkillTreeCache;
@@ -455,14 +458,21 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     continue;
                 }
 
-                // Filter out the "you are here" marker (fp 0x502EF3) before
-                // attempting the map-node parse — it can have garbage that looks
-                // valid at the map-node offsets.
+                // Identify each child by its UiElement fingerprint. The "you are here" marker shares
+                // the node-list container fp (0x502EF3); real atlas map nodes are 0x542EF3. Only parse
+                // actual map nodes — other children (markers, sub-containers, decorative elements) have
+                // unrelated layouts, and chasing the map-node pointer chain on them dereferences garbage
+                // (huge bogus child counts → multi-MB reads), which is what froze the overlay.
                 var flags = reader.ReadMemory<uint>(nodeUi.Address + UiElementBaseFlagsOffset);
-                if ((flags & ~IsVisibleMask) == markerFpMasked
-                    && (flags & IsVisibleMask) != 0)
+                var fpMasked = flags & ~IsVisibleMask;
+                if (fpMasked == markerFpMasked && (flags & IsVisibleMask) != 0)
                 {
                     markers.Add(new PlayerMarker(i, nodeUi.Address, -1));
+                    continue;
+                }
+
+                if (fpMasked != (AtlasMapNodeFp & ~IsVisibleMask))
+                {
                     continue;
                 }
 
@@ -584,6 +594,15 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             var reader = Core.Process.Handle;
             var tokenVector = reader.ReadMemory<StdVector>(nodeAddr + AtlasNodeContentVecOffset);
+
+            // Sanity-cap the element count so a torn/garbage vector can't trigger a multi-MB read
+            // (ReadStdVector only bounds at 50 MB). Real content lists are tiny.
+            var count = (tokenVector.Last.ToInt64() - tokenVector.First.ToInt64()) / sizeof(uint);
+            if (count <= 0 || count > AtlasNodeMaxContentTokens)
+            {
+                return new List<uint>();
+            }
+
             var tokens = reader.ReadStdVector<uint>(tokenVector);
             return tokens.Length > 0 ? new List<uint>(tokens) : new List<uint>();
         }
@@ -660,8 +679,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 return;
             }
 
+            // Real content containers hold a handful of badges; a huge count means a torn/garbage read,
+            // so skip it rather than iterating (and materializing a UiElementBase for) every entry.
+            var childCount = contentContainer.TotalChildrens;
+            if (childCount > AtlasNodeMaxContentChildren)
+            {
+                return;
+            }
+
             var reader = Core.Process.Handle;
-            for (var i = 0; i < contentContainer.TotalChildrens; i++)
+            for (var i = 0; i < childCount; i++)
             {
                 var childAddr = contentContainer[i]?.Address ?? IntPtr.Zero;
                 if (childAddr == IntPtr.Zero)
