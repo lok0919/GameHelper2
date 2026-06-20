@@ -314,6 +314,15 @@ namespace GameHelper.Plugin
 
                 foreach (var container in snapshot)
                 {
+                    // Only save enabled plugins. Disabled plugins never had OnEnable
+                    // called, so they never loaded their settings file from disk - their
+                    // in-memory Settings is still the empty `new TSettings()` default.
+                    // Saving that would overwrite (wipe) the user's saved config on disk.
+                    if (!container.Metadata.Enable)
+                    {
+                        continue;
+                    }
+
                     try
                     {
                         container.Plugin.SaveSettings();
