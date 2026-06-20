@@ -18,6 +18,24 @@ namespace GameHelper.Utils
     public static class ImGuiHelper
     {
         /// <summary>
+        ///     Screen positions already used by <see cref="DrawText"/> in the current frame,
+        ///     so overlapping entity labels can be shifted down instead of stacking on top
+        ///     of each other and becoming unreadable.
+        /// </summary>
+        private static readonly List<Vector2> drawnTextPositions = new();
+
+        /// <summary>
+        ///     ImGui frame number the <see cref="drawnTextPositions"/> list was last reset on.
+        /// </summary>
+        private static int drawnTextPositionsFrame = -1;
+
+        /// <summary>
+        ///     Two label anchors are considered "the same place" when both their X and Y
+        ///     coordinates are within this many pixels of each other.
+        /// </summary>
+        private const float OverlapTolerancePx = 5f;
+
+        /// <summary>
         ///     Converts the float data to imgui text widget.
         /// </summary>
         /// <param name="text">text to display along with the float data</param>
@@ -109,10 +127,36 @@ namespace GameHelper.Utils
         {
             var colBg = Color(0, 0, 0, 255);
             var colFg = Color(255, 255, 255, 255);
+            var anchor = Core.States.InGameStateObject.CurrentWorldInstance.WorldToScreen(pos);
+
+            // Reset the per-frame tracking when a new frame starts so positions from the
+            // previous frame don't keep pushing this frame's labels down indefinitely.
+            var frame = ImGui.GetFrameCount();
+            if (frame != drawnTextPositionsFrame)
+            {
+                drawnTextPositionsFrame = frame;
+                drawnTextPositions.Clear();
+            }
+
+            // If something was already drawn at (roughly) this anchor, shift down by one
+            // line (the font height) until a free slot is found. Re-checks against all
+            // recorded positions each step so 3+ entities stacking on one spot keep
+            // fanning out. We collide on the entity's screen anchor (not the text's
+            // top-left corner), so labels of different lengths at the same spot are still
+            // separated.
+            var shiftPx = ImGui.GetFontSize();
+            while (drawnTextPositions.Any(p =>
+                Math.Abs(p.X - anchor.X) <= OverlapTolerancePx &&
+                Math.Abs(p.Y - anchor.Y) <= OverlapTolerancePx))
+            {
+                anchor.Y += shiftPx;
+            }
+
+            drawnTextPositions.Add(anchor);
+
             var textSizeHalf = ImGui.CalcTextSize(text) / 2;
-            var location = Core.States.InGameStateObject.CurrentWorldInstance.WorldToScreen(pos);
-            var max = location + textSizeHalf;
-            location -= textSizeHalf;
+            var location = anchor - textSizeHalf;
+            var max = anchor + textSizeHalf;
             ImGui.GetBackgroundDrawList().AddRectFilled(location, max, colBg);
             ImGui.GetForegroundDrawList().AddText(location, colFg, text);
         }

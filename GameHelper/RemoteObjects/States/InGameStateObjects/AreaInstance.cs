@@ -962,16 +962,21 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     if (entity.Value.IsValid &&
                         entity.Value.TryGetComponent<Render>(out var eRender))
                     {
-                        switch (this.filterBy)
+                        // Build the label per filter, then draw it through a single
+                        // DrawText call so the overlap-shifting logic lives in one place.
+                        var entityLabel = this.filterBy switch
                         {
-                            case 0:
-                                ImGuiHelper.DrawText(eRender.WorldPosition, $"ID: {entity.Key.id}");
-                                break;
-                            case 1:
-                                ImGuiHelper.DrawText(eRender.WorldPosition, $"Path: {entity.Value.Path}");
-                                break;
-                            default:
-                                break;
+                            0 => $"ID: {entity.Key.id}",
+                            1 => $"Path: {entity.Value.Path}",
+                            2 => entity.Value.TryGetComponent(out ObjectMagicProperties? omp)
+                                ? $"Rarity: {omp.Rarity}"
+                                : null,
+                            _ => null,
+                        };
+
+                        if (entityLabel != null)
+                        {
+                            ImGuiHelper.DrawText(eRender.WorldPosition, entityLabel);
                         }
                     }
                 }
