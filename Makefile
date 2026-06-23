@@ -38,3 +38,6 @@ release:
 
 zip:
 	cd GameHelper/bin/Release/net10.0-windows/win-x64 && python3 -m zipfile -c "$(CURDIR)/GH2_$$(date +%Y%m%d%H%M).zip" .
+
+update:
+	git fetch upstream && git rebase upstream/main
