@@ -1,4 +1,4 @@
-.PHONY: all build restore clean publish release zip
+.PHONY: all build restore clean publish release zip update ship
 
 # Solution file
 SLN = GameOverlay.sln
@@ -41,3 +41,6 @@ zip:
 
 update:
 	git fetch upstream && git rebase upstream/main
+
+ship:
+	rm -f *.zip && make release && make zip && sudo cp *.zip /samba/public/
