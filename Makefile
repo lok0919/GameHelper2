@@ -1,4 +1,4 @@
-.PHONY: all build restore clean publish release zip update ship
+.PHONY: all build restore clean publish release zip update ship add-plugin
 
 # Solution file
 SLN = GameOverlay.sln
@@ -44,3 +44,15 @@ update:
 
 ship:
 	rm -f *.zip && make release && make zip && sudo cp *.zip /samba/public/
+
+add-plugin:
+	@if [ -z "$(REPO)" ]; then \
+		echo "Error: REPO variable is not set. Usage: make add-plugin REPO=<repo_url>"; \
+		exit 1; \
+	fi
+	@NAME=$$(basename -s .git "$(REPO)"); \
+	echo "Adding submodule for $$NAME from $(REPO)..."; \
+	git submodule add "$(REPO)" "Plugins/$$NAME"; \
+	echo "Adding project Plugins/$$NAME/$$NAME.csproj to $(SLN)..."; \
+	$(PODMAN_RUN) dotnet sln $(SLN) add "Plugins/$$NAME/$$NAME.csproj" --solution-folder Plugins
+
