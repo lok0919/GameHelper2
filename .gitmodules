@@ -1,3 +1,6 @@
 [submodule "Plugins/Atlas"]
 	path = Plugins/Atlas
 	url = git@github.com:yokkenUA/Atlas.git
+[submodule "Plugins/RunecraftHelper"]
+	path = Plugins/RunecraftHelper
+	url = git@github.com:yokkenUA/RunecraftHelper.git
