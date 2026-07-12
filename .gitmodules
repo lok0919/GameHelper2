@@ -1,0 +1,3 @@
+[submodule "Plugins/Atlas"]
+	path = Plugins/Atlas
+	url = git@github.com:yokkenUA/Atlas.git
