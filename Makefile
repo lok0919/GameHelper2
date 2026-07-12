@@ -52,7 +52,7 @@ add-plugin:
 	fi
 	@NAME=$$(basename -s .git "$(REPO)"); \
 	echo "Adding submodule for $$NAME from $(REPO)..."; \
-	git submodule add "$(REPO)" "Plugins/$$NAME"; \
+	git submodule add --force "$(REPO)" "Plugins/$$NAME"; \
 	echo "Adding project Plugins/$$NAME/$$NAME.csproj to $(SLN)..."; \
 	$(PODMAN_RUN) dotnet sln $(SLN) add "Plugins/$$NAME/$$NAME.csproj" --solution-folder Plugins
 
