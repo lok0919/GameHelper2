@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Atlas", "Plugins\Atlas\Atla
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RunecraftHelper", "Plugins\RunecraftHelper\RunecraftHelper.csproj", "{DF04645E-4DC8-499D-8A41-F086390AEA61}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StashUtility", "Plugins\StashUtility\StashUtility.csproj", "{53A524D2-45DB-4E91-9372-5621675C199B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -225,6 +227,18 @@ Global
 		{DF04645E-4DC8-499D-8A41-F086390AEA61}.Release|x64.Build.0 = Release|Any CPU
 		{DF04645E-4DC8-499D-8A41-F086390AEA61}.Release|x86.ActiveCfg = Release|Any CPU
 		{DF04645E-4DC8-499D-8A41-F086390AEA61}.Release|x86.Build.0 = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|x64.Build.0 = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Debug|x86.Build.0 = Debug|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|x64.ActiveCfg = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|x64.Build.0 = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|x86.ActiveCfg = Release|Any CPU
+		{53A524D2-45DB-4E91-9372-5621675C199B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -241,6 +255,7 @@ Global
 		{A977E0C2-4216-4411-966C-74CB24F8C2B1} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 		{CBE93B86-E2D7-4E19-A22D-F8CFC7D89A24} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 		{DF04645E-4DC8-499D-8A41-F086390AEA61} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
+		{53A524D2-45DB-4E91-9372-5621675C199B} = {9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6CB26318-014D-4959-8116-07FD055D941A}
