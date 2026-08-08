@@ -11,6 +11,7 @@
   "ui.language.russian": "ภาษารัสเซีย",
   "ui.language.thai": "ภาษาไทย",
   "settings.window.title": "การตั้งค่าโอเวอร์เลย์เกม [ {0} ]",
+  "settings.window.hide": "ซ่อนหน้าต่างการตั้งค่า ({0})",
   "settings.menu.hide_show": "ซ่อน/แสดงเมนู: {0}",
   "settings.debug.imgui_demo": "การสาธิต ImGui",
   "settings.tabs.general": "ทั่วไป",

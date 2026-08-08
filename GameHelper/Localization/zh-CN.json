@@ -11,6 +11,7 @@
   "ui.language.russian": "俄语",
   "ui.language.thai": "泰语",
   "settings.window.title": "Game Overlay 设置 [ {0} ]",
+  "settings.window.hide": "隐藏设置窗口（{0}）",
   "settings.menu.hide_show": "显示/隐藏菜单：{0}",
   "settings.debug.imgui_demo": "ImGui 演示",
   "settings.tabs.general": "通用",

@@ -11,6 +11,7 @@
   "ui.language.russian": "러시아어",
   "ui.language.thai": "태국어",
   "settings.window.title": "게임 오버레이 설정 [ {0} ]",
+  "settings.window.hide": "설정 창 숨기기 ({0})",
   "settings.menu.hide_show": "메뉴 숨기기/표시: {0}",
   "settings.debug.imgui_demo": "ImGui 데모",
   "settings.tabs.general": "일반적인",

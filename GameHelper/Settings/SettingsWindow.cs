@@ -62,7 +62,7 @@ namespace GameHelper.Settings
             Core.CoroutinesRegistrar.Add(CoroutineHandler.Start(
                 RenderCoroutine(),
                 "[Settings] Draw Core/Plugin settings",
-                int.MaxValue));
+                UiRenderPriority.CoreWindows));
         }
 
         private static void DrawManuBar()
@@ -210,6 +210,58 @@ namespace GameHelper.Settings
         }
 
         private static string PluginPageId(string pluginName) => $"plugin:{pluginName}";
+
+        private static bool DrawTitleBarHideButton()
+        {
+            var style = ImGui.GetStyle();
+            var windowPosition = ImGui.GetWindowPos();
+            var windowSize = ImGui.GetWindowSize();
+            var titleBarHeight = ImGui.GetFrameHeight();
+            var buttonSize = ImGui.GetFontSize();
+            var buttonTop = windowPosition.Y + ((titleBarHeight - buttonSize) / 2f);
+
+            // ImGui places its close button against the right frame padding. Reserve that
+            // slot and put the hide button immediately to its left.
+            var closeButtonRight = windowPosition.X + windowSize.X - style.FramePadding.X;
+            var buttonMax = new Vector2(
+                closeButtonRight - buttonSize - style.ItemInnerSpacing.X,
+                buttonTop + buttonSize);
+            var buttonMin = new Vector2(buttonMax.X - buttonSize, buttonTop);
+            var hovered = ImGui.IsMouseHoveringRect(buttonMin, buttonMax, false);
+            // The foreground list is submitted after ImGui's native title-bar geometry,
+            // ensuring the custom glyph cannot be clipped or painted over by the window.
+            var drawList = ImGui.GetForegroundDrawList();
+
+            if (hovered)
+            {
+                drawList.AddRectFilled(
+                    buttonMin,
+                    buttonMax,
+                    ImGui.GetColorU32(ImGuiCol.ButtonHovered),
+                    style.FrameRounding);
+                ImGui.SetTooltip(L.F(
+                    "settings.window.hide",
+                    "Hide settings window ({0})",
+                    Core.GHSettings.MainMenuHotKey));
+            }
+
+            var lineY = buttonMin.Y + (buttonSize * 0.7f);
+            drawList.AddLine(
+                new Vector2(buttonMin.X + (buttonSize * 0.2f), lineY),
+                new Vector2(buttonMax.X - (buttonSize * 0.2f), lineY),
+                ImGui.GetColorU32(ImGuiCol.Text),
+                2f);
+
+            return hovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        }
+
+        private static void HideSettingsWindow()
+        {
+            isSettingsWindowVisible = false;
+            Core.IsSettingsMenuOpen = false;
+            ImGui.GetIO().WantCaptureMouse = true;
+            CoroutineHandler.RaiseEvent(GameHelperEvents.TimeToSaveAllSettings);
+        }
 
         /// <summary>
         ///     Draws the plugin manager table (enable/disable plugins).
@@ -986,11 +1038,14 @@ namespace GameHelper.Settings
                 yield return new Wait(GameHelperEvents.OnRender);
                 if (Utils.IsKeyPressedAndNotTimeout(Core.GHSettings.MainMenuHotKey))
                 {
-                    isSettingsWindowVisible = !isSettingsWindowVisible;
-                    ImGui.GetIO().WantCaptureMouse = true;
-                    if (!isSettingsWindowVisible)
+                    if (isSettingsWindowVisible)
                     {
-                        CoroutineHandler.RaiseEvent(GameHelperEvents.TimeToSaveAllSettings);
+                        HideSettingsWindow();
+                    }
+                    else
+                    {
+                        isSettingsWindowVisible = true;
+                        ImGui.GetIO().WantCaptureMouse = true;
                     }
                 }
 
@@ -1005,6 +1060,13 @@ namespace GameHelper.Settings
                     $"{L.F("settings.window.title", "Game Overlay Settings [ {0} ]", Core.GetVersion())}###GameOverlaySettings",
                     ref isOverlayRunningLocal,
                     ImGuiWindowFlags.MenuBar);
+
+                if (DrawTitleBarHideButton())
+                {
+                    HideSettingsWindow();
+                    ImGui.End();
+                    continue;
+                }
 
                 if (!isOverlayRunningLocal)
                 {

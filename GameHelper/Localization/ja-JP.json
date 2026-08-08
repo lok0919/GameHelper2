@@ -11,6 +11,7 @@
   "ui.language.russian": "ロシア語",
   "ui.language.thai": "タイ語",
   "settings.window.title": "ゲームオーバーレイ設定 [ {0} ]",
+  "settings.window.hide": "設定ウィンドウを非表示 ({0})",
   "settings.menu.hide_show": "メニューの非表示/表示: {0}",
   "settings.debug.imgui_demo": "ImGui デモ",
   "settings.tabs.general": "一般的な",

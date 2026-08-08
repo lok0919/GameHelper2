@@ -11,6 +11,7 @@
   "ui.language.russian": "Русский",
   "ui.language.thai": "Тайский",
   "settings.window.title": "Настройки наложения игры [ {0} ]",
+  "settings.window.hide": "Скрыть окно настроек ({0})",
   "settings.menu.hide_show": "Скрыть/показать меню: {0}",
   "settings.debug.imgui_demo": "Демо-версия ImGui",
   "settings.tabs.general": "Общий",

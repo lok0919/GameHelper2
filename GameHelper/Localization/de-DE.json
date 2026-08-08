@@ -11,6 +11,7 @@
   "ui.language.russian": "Russisch",
   "ui.language.thai": "Thai",
   "settings.window.title": "Spiel-Overlay-Einstellungen [ {0} ]",
+  "settings.window.hide": "Einstellungsfenster ausblenden ({0})",
   "settings.menu.hide_show": "Menü ein-/ausblenden: {0}",
   "settings.debug.imgui_demo": "ImGui-Demo",
   "settings.tabs.general": "Allgemein",

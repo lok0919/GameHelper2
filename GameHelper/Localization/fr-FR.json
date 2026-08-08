@@ -11,6 +11,7 @@
   "ui.language.russian": "Russe",
   "ui.language.thai": "Thaï",
   "settings.window.title": "Paramètres de superposition de jeu [ {0} ]",
+  "settings.window.hide": "Masquer la fenêtre des paramètres ({0})",
   "settings.menu.hide_show": "Masquer/afficher le menu : {0}",
   "settings.debug.imgui_demo": "Démo ImGui",
   "settings.tabs.general": "Général",
