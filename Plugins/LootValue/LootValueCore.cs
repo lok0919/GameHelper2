@@ -30,7 +30,8 @@ namespace LootValue
     public sealed class LootValueCore : PCore<LootValueSettings>
     {
         private const string ItemPathPrefix = "Metadata/Items";
-        private const int UiElementItemAddressOffset = 0x4F8;
+        // PoE 0.5.5 shifted the UiElement tail (including the slot item pointer) by -0x18.
+        private const int UiElementItemAddressOffset = 0x4E0;
         private static readonly int[] CurrencyExchangeRootPath = { 114, 20, 6 };
 
         private readonly List<LootLabel> cachedLabels = new();
@@ -42,7 +43,9 @@ namespace LootValue
         private DateTime nextDiagUtc = DateTime.MinValue;
 
         // Loot-tag mode (anchors chips to the game's loot labels via a throttled UI-tree scan).
-        private const int UiElementTextOffset = 0x390;
+        // PoE 0.5.5 moved inline text-element wstrings by -0x30: UiElementBase lost 0x18 and
+        // the derived text class lost another 0x18. Verified live by RunecraftHelper as well.
+        private const int UiElementTextOffset = 0x360;
         private readonly List<TagChip> cachedTagChips = new();
         private readonly Dictionary<IntPtr, Tracked> trackTag = new();
         private DateTime nextTagScanUtc = DateTime.MinValue;
@@ -1041,8 +1044,9 @@ namespace LootValue
             ImGui.TextUnformatted($"{label}: 0x{report.PanelAddress.ToInt64():X}");
             ImGui.TextUnformatted(this.PluginText.F(
                 "diagnostics.slots.summary",
-                "UI elements={0}  non-zero +0x4F8={1}  unique pointers={2}  valid items={3}  priced={4}  visible={5}  scroll views={6}  scroll Y={7:0.0}",
+                "UI elements={0}  non-zero +0x{1:X}={2}  unique pointers={3}  valid items={4}  priced={5}  visible={6}  scroll views={7}  scroll Y={8:0.0}",
                 report.VisitedElements,
+                UiElementItemAddressOffset,
                 report.NonZeroPointers,
                 report.UniquePointers,
                 report.ValidItems,

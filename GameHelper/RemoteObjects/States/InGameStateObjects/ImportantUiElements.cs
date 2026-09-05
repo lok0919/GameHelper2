@@ -93,9 +93,10 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         // Rows are 0=Breach, 1=Forest, 2=Ocean/ship, 3=Tower. Its grid coordinate identifies the
         // 16x16 chunk a logbook will reveal; those fogged nodes are already materialized and have
         // maps assigned, which is why Atlas2 can preview their nodes and leylines.
-        private const int AtlasRegionButtonRowPtrOffset = 0x320;
-        private const int AtlasRegionButtonGridOffset = 0x330;
-        private const int AtlasRegionButtonRowIndexOffset = 0x338;
+        // PoE 0.5.5 shifted the EndgameRegionActionButton UiElement tail by -0x18.
+        private const int AtlasRegionButtonRowPtrOffset = 0x308;
+        private const int AtlasRegionButtonGridOffset = 0x318;
+        private const int AtlasRegionButtonRowIndexOffset = 0x320;
         private const int AtlasOceanRegionButtonRow = 2;
         private const int AtlasNodeMaxContentChildren = 64;
         private const int AtlasNodeMaxContentTokens = 64;
