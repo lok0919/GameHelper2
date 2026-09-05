@@ -43,7 +43,7 @@ update:
 	git fetch upstream && git rebase upstream/main
 
 ship:
-	rm -f *.zip && make release && make zip && sudo cp *.zip /samba/public/
+	rm -f *.zip && make release && make zip && mv *.zip /home/sam/Works/linux-files-server/storage
 
 add-plugin:
 	@if [ -z "$(REPO)" ]; then \
