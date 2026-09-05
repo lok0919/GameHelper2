@@ -8,6 +8,12 @@ from your own plugins via `Core.*`.
 
 ## [2.7.2] - 2026-09-05
 
+### Changed
+
+- **Forbidden Rites economy defaults.** LootValue, LootTracker, and
+  RunecraftHelper now default to the current league and migrate saved untouched
+  Runes of Aldur defaults once, while preserving later explicit selections.
+
 ### Fixed
 
 - **Radar in the Trial of the Sekhemas.** Legitimate large Trial terrain now
