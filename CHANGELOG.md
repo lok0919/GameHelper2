@@ -6,13 +6,17 @@ Path of Exile 2; "0.5.x" references are the game patch the build targets.
 Sections marked **For plugin devs** describe newly exposed APIs you can read
 from your own plugins via `Core.*`.
 
-## [2.7.2] - 2026-09-05
+## [2.7.5] - 2026-09-11
 
-### Changed
+### Fixed
 
-- **Forbidden Rites economy defaults.** LootValue, LootTracker, and
-  RunecraftHelper now default to the current league and migrate saved untouched
-  Runes of Aldur defaults once, while preserving later explicit selections.
+- **Controller-mode map detection.** Updated the controller map-parent offset
+  after the game layout changed, restoring map access when using a controller.
+- **LootValue poe2scout requests.** Switched price requests to poe2scout's
+  current API host and reject non-JSON responses so provider failures are
+  detected cleanly instead of being treated as valid price data.
+
+## [2.7.4] - 2026-09-07
 
 ### Fixed
 
@@ -28,6 +32,19 @@ from your own plugins via `Core.*`.
 - **Radar minimap layer parity.** The minimap now draws the walkable-map
   outlines, terrain POIs, and POI paths already shown on the large map, with
   every layer clipped to the minimap bounds.
+
+## [2.7.3] - 2026-09-05
+
+### Changed
+
+- **Forbidden Rites economy defaults.** LootValue, LootTracker, and
+  RunecraftHelper now default to the current league and migrate saved untouched
+  Runes of Aldur defaults once, while preserving later explicit selections.
+
+## [2.7.2] - 2026-09-05
+
+### Fixed
+
 - **Radar in the Trial of the Sekhemas.** Legitimate large Trial terrain now
   passes core validation, restoring walkable-map outlines while retaining an
   exact tile-vector shape check against invalid offset data.
